@@ -3,24 +3,23 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-sans: var(--font-montserrat);
+
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  /* 1. Mapeamos la fuente de Next.js */
+  --font-sans: var(--font-montserrat);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* 2. Definimos los colores de marca aquí para que Tailwind v4 los reconozca */
+  --color-tertiary: #4b634f;
+  --dark-tertiary: #344437;
+  --gray: #303030;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-montserrat);
+  
 }
