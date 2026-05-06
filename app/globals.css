@@ -5,6 +5,9 @@
   --foreground: #171717;
   --font-sans: var(--font-montserrat);
 
+
+ 
+
 }
 
 @theme {
@@ -14,6 +17,7 @@
   /* 2. Definimos los colores de marca aquí para que Tailwind v4 los reconozca */
   --color-tertiary: #4b634f;
   --dark-tertiary: #344437;
+  --light-tertiary: #74967a;
   --gray: #303030;
 }
 

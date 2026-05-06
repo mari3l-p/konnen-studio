@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Calendar,
+  Ticket,
   Users,
   BookOpen,
   BarChart3,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Menu,
   ExternalLink,
+  ShoppingBag,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -22,7 +24,9 @@ const NAV = [
   { label: 'Tipos de clase', href: '/admin/clases', icon: Dumbbell },
   { label: 'Instructores', href: '/admin/instructores', icon: Users },
   { label: 'Reservas', href: '/admin/reservas', icon: BookOpen },
+  { label: 'Paquetes', href: '/admin/paquetes', icon: ShoppingBag },
   { label: 'Clientes', href: '/admin/clientes', icon: Users },
+  { label: 'Eventos', href: '/admin/eventos', icon: Ticket },
   { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
 ]
 
@@ -86,13 +90,10 @@ function Sidebar({
           Cerrar sesión
         </button>
 
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
-        >
+        <a href="/" className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
           <ExternalLink className="w-4 h-4" />
           Volver a inicio
-        </Link>
+        </a>
       </div>
 
     </div>

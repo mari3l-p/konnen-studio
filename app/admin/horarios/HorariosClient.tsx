@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Plus, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Session, ClassType, Instructor } from '@/types'
 import { useRouter } from 'next/navigation'
@@ -24,8 +24,8 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
     instructor_id: '',
     starts_at: '',
     capacity: 15,
-    price_cents: 15000,
-    location: 'flexroom',
+    price_cents: 250, // stored as pesos directly
+    location: 'Konnen Studio',
   })
 
   async function handleCreate() {
@@ -34,7 +34,16 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
     if (!error) {
       router.refresh()
       setShowForm(false)
-      setForm({ class_type_id: '', instructor_id: '', starts_at: '', capacity: 15, price_cents: 15000, location: 'flexroom' })
+      setForm({
+        class_type_id: '',
+        instructor_id: '',
+        starts_at: '',
+        capacity: 15,
+        price_cents: 250,
+        location: 'Konnen Studio',
+      })
+    } else {
+      console.error('Error creating session:', error.message)
     }
     setLoading(false)
   }
@@ -65,6 +74,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
         <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
           <h2 className="text-base font-bold mb-5">Nueva sesión</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-400 uppercase tracking-widest">Clase</label>
               <select
@@ -73,7 +83,9 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 onChange={(e) => setForm({ ...form, class_type_id: e.target.value })}
               >
                 <option value="">Seleccionar...</option>
-                {classTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                {classTypes.map(ct => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
               </select>
             </div>
 
@@ -85,7 +97,9 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}
               >
                 <option value="">Seleccionar...</option>
-                {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                {instructors.map(i => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
               </select>
             </div>
 
@@ -103,6 +117,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               <label className="text-xs text-gray-400 uppercase tracking-widest">Capacidad</label>
               <input
                 type="number"
+                min={1}
                 className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white"
                 value={form.capacity}
                 onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
@@ -110,14 +125,18 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-widest">Precio (centavos MXN)</label>
-              <input
-                type="number"
-                className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white"
-                value={form.price_cents}
-                onChange={(e) => setForm({ ...form, price_cents: Number(e.target.value) })}
-              />
-              <span className="text-xs text-gray-500">= ${(form.price_cents / 100).toFixed(0)} MXN</span>
+              <label className="text-xs text-gray-400 uppercase tracking-widest">Precio (MXN)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="bg-gray-800 border border-gray-700 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white w-full"
+                  value={form.price_cents}
+                  onChange={(e) => setForm({ ...form, price_cents: Number(e.target.value) })}
+                />
+              </div>
+              <span className="text-xs text-gray-500">Precio final: ${form.price_cents} MXN</span>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -181,7 +200,8 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 <td className="px-6 py-4 text-gray-400">
                   {s.session_availability?.spots_left ?? '—'} / {s.capacity}
                 </td>
-                <td className="px-6 py-4 text-gray-400">${(s.price_cents / 100).toFixed(0)}</td>
+                {/* ✅ No division — price stored as pesos directly */}
+                <td className="px-6 py-4 text-gray-400">${s.price_cents} MXN</td>
                 <td className="px-6 py-4">
                   {s.is_cancelled
                     ? <span className="text-xs font-semibold text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full">Cancelada</span>

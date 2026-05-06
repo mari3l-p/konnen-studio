@@ -3,24 +3,30 @@ import ScheduleClient from './ScheduleClient'
 import { startOfWeek, addWeeks } from 'date-fns'
 
 export default async function HorarioPage() {
-  const supabase = createSupabaseServerClient()
+  const supabase = await createSupabaseServerClient()
 
-  // Traer sesiones de las próximas 4 semanas para que la navegación funcione client-side
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const rangeEnd = addWeeks(weekStart, 4)
 
-  const { data: sessions } = await supabase
-    .from('sessions')
-    .select(`
-      *,
-      class_types(*),
-      instructors(*),
-      session_availability(spots_left)
-    `)
-    .gte('starts_at', weekStart.toISOString())
-    .lte('starts_at', rangeEnd.toISOString())
-    .eq('is_cancelled', false)
-    .order('starts_at')
+  const [
+    { data: sessionsRaw },
+    { data: availability },
+  ] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select('*, class_types(*), instructors(*)')
+      .gte('starts_at', weekStart.toISOString())
+      .lte('starts_at', rangeEnd.toISOString())
+      .eq('is_cancelled', false)
+      .order('starts_at'),
+    supabase.from('session_availability').select('*'),
+  ])
 
-  return <ScheduleClient sessions={sessions ?? []} />
+  // Merge availability into sessions
+  const sessions = (sessionsRaw ?? []).map(s => ({
+    ...s,
+    session_availability: availability?.find(a => a.session_id === s.id) ?? null,
+  }))
+
+  return <ScheduleClient sessions={sessions} />
 }

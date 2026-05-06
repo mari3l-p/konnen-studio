@@ -33,9 +33,7 @@ export default function AdminLogin() {
       <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-sm shadow-2xl">
 
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center mb-3">
-            <span className="text-black font-extrabold text-sm">Kn</span>
-          </div>
+        
           <h1 className="text-white text-xl font-bold">Panel Admin</h1>
           <p className="text-gray-400 text-sm mt-1">Konnen Studio · Acceso restringido</p>
         </div>

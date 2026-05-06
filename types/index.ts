@@ -1,9 +1,7 @@
 export type ClassType = {
   id: string
   name: string
-  description: string | null
   image_url: string | null
-  category: string | null
   duration_mins: number
 }
 

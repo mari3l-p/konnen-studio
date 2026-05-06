@@ -4,11 +4,8 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { loadStripe } from '@stripe/stripe-js'
 import { Session } from '@/types'
 import { supabase } from '@/lib/supabase'
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 
 type Props = {
   session: Session
@@ -25,7 +22,6 @@ export default function BookingModal({ session, onClose }: Props) {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      // Redirigir a login si no está autenticado
       await supabase.auth.signInWithOAuth({ provider: 'google' })
       return
     }
@@ -77,15 +73,16 @@ export default function BookingModal({ session, onClose }: Props) {
             <span className="font-medium">{session.location}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Espacios</span>
+            <span className="text-gray-500">Espacios disponibles</span>
             <span className="font-medium">
-              {session.session_availability?.spots_left ?? '—'} disponibles
+              {session.session_availability?.spots_left ?? '—'}
             </span>
           </div>
           <div className="flex justify-between border-t pt-2 mt-1">
             <span className="font-semibold">Total</span>
-            <span className="font-bold text-blue-600">
-              ${(session.price_cents / 100).toFixed(0)} MXN
+            {/* ✅ Direct price, no division */}
+            <span className="font-bold text-tertiary">
+              ${session.price_cents} MXN
             </span>
           </div>
         </div>
@@ -97,7 +94,7 @@ export default function BookingModal({ session, onClose }: Props) {
         <button
           onClick={handleReserve}
           disabled={loading}
-          className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="w-full bg-tertiary text-white font-semibold py-3 rounded-xl hover:bg-tertiary disabled:opacity-50 transition-colors"
         >
           {loading ? 'Procesando...' : 'Confirmar y pagar'}
         </button>

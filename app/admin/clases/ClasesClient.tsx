@@ -11,14 +11,24 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
   const [classTypes, setClassTypes] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    name: '', description: '', category: '', duration_mins: 50, image_url: '',
+    name: '',
+    duration_mins: 50,
+    image_url: '',
   })
 
   async function handleCreate() {
     setLoading(true)
+    setError(null)
     const { error } = await supabase.from('class_types').insert([form])
-    if (!error) { router.refresh(); setShowForm(false) }
+    if (error) {
+      setError(error.message)
+    } else {
+      router.refresh()
+      setShowForm(false)
+      setForm({ name: '', duration_mins: 50, image_url: '' })
+    }
     setLoading(false)
   }
 
@@ -32,7 +42,7 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Tipos de clase</h1>
-          <p className="text-gray-400 text-sm mt-1">Funcional, Barre, Reformer, etc.</p>
+          <p className="text-gray-400 text-sm mt-1">Indoor Cycling, Sculpt Deep, Define & Tone</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -47,22 +57,17 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
         <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
           <h2 className="text-base font-bold mb-5">Nueva tipo de clase</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { label: 'Nombre', key: 'name', placeholder: 'Ej: Funcional' },
-              { label: 'Categoría', key: 'category', placeholder: 'Ej: Body Conditioning' },
-              { label: 'URL de imagen', key: 'image_url', placeholder: 'https://...' },
-            ].map(({ label, key, placeholder }) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <label className="text-xs text-gray-400 uppercase tracking-widest">{label}</label>
-                <input
-                  type="text"
-                  placeholder={placeholder}
-                  className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500"
-                  value={(form as any)[key]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                />
-              </div>
-            ))}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-widest">Nombre</label>
+              <input
+                type="text"
+                placeholder="Ej: Sculpt Deep"
+                className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-400 uppercase tracking-widest">Duración (min)</label>
@@ -75,15 +80,20 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
             </div>
 
             <div className="flex flex-col gap-1.5 md:col-span-2">
-              <label className="text-xs text-gray-400 uppercase tracking-widest">Descripción</label>
-              <textarea
-                rows={3}
-                className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500 resize-none"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              <label className="text-xs text-gray-400 uppercase tracking-widest">URL de imagen</label>
+              <input
+                type="text"
+                placeholder="https://..."
+                className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500"
+                value={form.image_url}
+                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
               />
             </div>
           </div>
+
+          {error && (
+            <p className="text-red-400 text-sm mt-4">{error}</p>
+          )}
 
           <div className="flex gap-3 mt-6">
             <button
@@ -93,7 +103,10 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
             >
               {loading ? 'Guardando...' : 'Crear'}
             </button>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white px-4 py-2.5 text-sm">
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-white px-4 py-2.5 text-sm"
+            >
               Cancelar
             </button>
           </div>
@@ -103,12 +116,21 @@ export default function ClasesClient({ classTypes: initial }: { classTypes: Clas
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {classTypes.map(ct => (
           <div key={ct.id} className="bg-gray-900 rounded-2xl p-5 border border-gray-800 flex justify-between items-start">
-            <div>
-              <p className="font-semibold text-white">{ct.name}</p>
-              <p className="text-gray-400 text-xs mt-1">{ct.category ?? '—'} · {ct.duration_mins} min</p>
-              {ct.description && <p className="text-gray-500 text-xs mt-2 line-clamp-2">{ct.description}</p>}
+            <div className="flex items-center gap-4">
+              {ct.image_url && (
+                <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gray-700">
+                  <img src={ct.image_url} alt={ct.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div>
+                <p className="font-semibold text-white">{ct.name}</p>
+                <p className="text-gray-400 text-xs mt-1">{ct.duration_mins} min</p>
+              </div>
             </div>
-            <button onClick={() => handleDelete(ct.id)} className="text-gray-600 hover:text-red-400 transition-colors ml-4 shrink-0">
+            <button
+              onClick={() => handleDelete(ct.id)}
+              className="text-gray-600 hover:text-red-400 transition-colors ml-4 shrink-0"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
