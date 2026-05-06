@@ -43,20 +43,18 @@ function Sidebar({
     <div className="flex flex-col h-full">
 
       {/* Logo — clicking goes to home */}
-      <Link
+      <a
         href="/"
         className="px-6 py-6 border-b border-gray-800 hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
-            <span className="text-black font-extrabold text-xs">Kn</span>
-          </div>
+          
           <div>
             <p className="text-white font-bold text-sm leading-tight">Konnen Studio</p>
             <p className="text-gray-500 text-xs">Panel Admin</p>
           </div>
         </div>
-      </Link>
+      </a>
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1">

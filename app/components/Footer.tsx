@@ -3,9 +3,9 @@ import { siInstagram, siYoutube, siFacebook } from "simple-icons";
 
 const NAV_LINKS = [
   { label: "Inicio", href: "/" },
-  { label: "Horarios", href: "#horarios" },
-  { label: "Eventos", href: "#precios" },
-  { label: "Paquetes", href: "#contacto" },
+  { label: "Horarios", href: "/horario" },
+  { label: "Eventos", href: "/eventos" },
+  { label: "Paquetes", href: "/paquetes" },
 ];
 
 

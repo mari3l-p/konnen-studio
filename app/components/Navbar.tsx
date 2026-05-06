@@ -33,10 +33,6 @@ const MENU_LINKS = [
   { label: "Mis facturas", href: "/facturas" },
 ];
 
-const BOTTOM_DRAWER_LINKS = [
-  { label: "Descargar al teléfono", href: "/app" },
-  { label: "Guías de ayuda", href: "/ayuda" },
-];
 
 // 3. Modificamos AccountDrawer para recibir los datos del usuario como props
 function AccountDrawer({ 
@@ -85,26 +81,9 @@ function AccountDrawer({
             ))}
           </nav>
           <div className="h-2 bg-gray-100" />
-          <div className="py-2">
-            <div className="flex items-center justify-between px-6 py-3.5">
-              <span className="text-gray-800 text-sm">Idioma</span>
-              <span className="text-blue-600 text-sm">Español</span>
-            </div>
-            <div className="h-px bg-gray-100 mx-6" />
-            <div className="flex items-center justify-between px-6 py-3.5">
-              <span className="text-gray-800 text-sm">Zona horaria</span>
-              <span className="text-blue-600 text-sm text-right max-w-45 leading-tight">Mexico - Central Time</span>
-            </div>
-          </div>
-          <div className="h-2 bg-gray-100" />
-          <div className="py-2">
-            {BOTTOM_DRAWER_LINKS.map((link) => (
-              <Link key={link.label} href={link.href} onClick={onClose} className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50 transition-colors">
-                <span className="text-gray-800 text-sm">{link.label}</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </Link>
-            ))}
-          </div>
+          
+          
+          
           <div className="h-2 bg-gray-100" />
           {/* Botón de cerrar sesión real */}
           <button 
@@ -173,7 +152,7 @@ export default function Navbar() {
     <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 h-14">
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
-          <span className="font-bold text-base text-tertiary">Können</span>
+          <a href="\" className="font-bold text-base text-tertiary">Können</a>
 
           <nav className="hidden md:flex items-center gap-1">
             {NAV_LINKS.map((link) => {

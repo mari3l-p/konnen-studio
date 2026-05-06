@@ -61,7 +61,7 @@ export default function DashboardClient({ profile, bookings }: Props) {
         {/* Greeting */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">
-            Hola, {firstName} 👋
+            Hola, {firstName} 
           </h1>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
