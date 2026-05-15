@@ -14,7 +14,7 @@ type Booking = {
   stripe_payment_intent_id: string | null
   sessions: {
     starts_at: string
-    price_cents: number
+    price: number 
     class_types: { name: string }
   } | null
 }
@@ -63,7 +63,6 @@ export default function FacturasClient({
           Lleva el control de tus facturas y completa cualquier pago pendiente en pocos clics.
         </p>
 
-        {/* Tabs */}
         <div className="flex gap-2 flex-wrap mb-6">
           {TABS.map(({ key, label }) => (
             <button
@@ -109,7 +108,8 @@ export default function FacturasClient({
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <p className="font-bold text-gray-900 text-sm">
-                      ${b.sessions?.price_cents ?? 0} MXN
+                      {/* Cambio: price directo */}
+                      ${b.sessions?.price ?? 0} MXN
                     </p>
                     <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusInfo.color}`}>
                       {statusInfo.label}

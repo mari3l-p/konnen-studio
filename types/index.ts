@@ -16,7 +16,7 @@ export type Session = {
   id: string
   starts_at: string
   capacity: number
-  price_cents: number
+  price: number
   location: string
   is_cancelled: boolean
   class_types: ClassType

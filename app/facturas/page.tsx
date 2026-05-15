@@ -12,7 +12,7 @@ export default async function FacturasPage() {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('*, sessions(starts_at, price_cents, class_types(name))')
+    .select('*, sessions(starts_at, price, class_types(name))')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

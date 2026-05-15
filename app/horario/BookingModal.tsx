@@ -22,7 +22,12 @@ export default function BookingModal({ session, onClose }: Props) {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      await supabase.auth.signInWithOAuth({ provider: 'google' })
+      // Si no hay usuario, iniciamos flujo de login
+      const { error: signInError } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+      })
+      if (signInError) setError(signInError.message)
       return
     }
 
@@ -32,9 +37,13 @@ export default function BookingModal({ session, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id }),
       })
-      const { url, error: apiError } = await res.json()
-      if (apiError) throw new Error(apiError)
-      window.location.href = url
+      
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      
+      if (data.url) {
+        window.location.href = data.url
+      }
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -53,7 +62,7 @@ export default function BookingModal({ session, onClose }: Props) {
         </button>
 
         <h2 className="text-xl font-bold text-gray-900 mb-1">
-          {session.class_types.name}
+          {session.class_types?.name}
         </h2>
         <p className="text-gray-500 text-sm mb-4">
           {format(new Date(session.starts_at), "EEEE d MMMM · hh:mm aa", { locale: es })}
@@ -65,38 +74,29 @@ export default function BookingModal({ session, onClose }: Props) {
             <span className="font-medium">{session.instructors?.name ?? '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Duración</span>
-            <span className="font-medium">{session.class_types.duration_mins} min</span>
-          </div>
-          <div className="flex justify-between">
             <span className="text-gray-500">Ubicación</span>
             <span className="font-medium">{session.location}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Espacios disponibles</span>
-            <span className="font-medium">
-              {session.session_availability?.spots_left ?? '—'}
-            </span>
-          </div>
           <div className="flex justify-between border-t pt-2 mt-1">
-            <span className="font-semibold">Total</span>
-            {/* ✅ Direct price, no division */}
-            <span className="font-bold text-tertiary">
-              ${session.price_cents} MXN
+            <span className="font-semibold text-gray-900">Total</span>
+            <span className="font-bold text-tertiary text-lg">
+              ${session.price} MXN
             </span>
           </div>
         </div>
 
         {error && (
-          <p className="text-red-500 text-sm mb-4">{error}</p>
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs mb-4">
+            {error}
+          </div>
         )}
 
         <button
           onClick={handleReserve}
           disabled={loading}
-          className="w-full bg-tertiary text-white font-semibold py-3 rounded-xl hover:bg-tertiary disabled:opacity-50 transition-colors"
+          className="w-full bg-tertiary text-white font-semibold py-3 rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
         >
-          {loading ? 'Procesando...' : 'Confirmar y pagar'}
+          {loading ? 'Preparando pago...' : 'Confirmar y pagar'}
         </button>
       </div>
     </div>

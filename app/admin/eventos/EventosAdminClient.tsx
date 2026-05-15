@@ -15,7 +15,7 @@ type Event = {
   starts_at: string
   ends_at: string | null
   location: string
-  price_cents: number
+  price: number 
   capacity: number | null
   is_cancelled: boolean
 }
@@ -33,7 +33,7 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
     starts_at: '',
     ends_at: '',
     location: 'Konnen Studio',
-    price_cents: 0,
+    price: 0,
     capacity: '',
   })
 
@@ -48,7 +48,7 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
       starts_at: form.starts_at,
       ends_at: form.ends_at || null,
       location: form.location,
-      price_cents: Number(form.price_cents),
+      price: Number(form.price), // Ahora enviamos el precio directo
       capacity: form.capacity ? Number(form.capacity) : null,
     }
 
@@ -61,7 +61,7 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
       setForm({
         title: '', description: '', image_url: '',
         starts_at: '', ends_at: '', location: 'Konnen Studio',
-        price_cents: 0, capacity: '',
+        price: 0, capacity: '',
       })
     }
     setLoading(false)
@@ -142,8 +142,8 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
                   type="number"
                   min={0}
                   className="bg-gray-800 border border-gray-700 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white w-full"
-                  value={form.price_cents}
-                  onChange={(e) => setForm({ ...form, price_cents: Number(e.target.value) })}
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
                 />
               </div>
             </div>
@@ -228,8 +228,8 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
                   {event.ends_at && ` → ${format(new Date(event.ends_at), "hh:mm aa", { locale: es })}`}
                 </p>
                 <p className="text-gray-500 text-xs mt-0.5">{event.location}</p>
-                {event.price_cents > 0 && (
-                  <p className="text-gray-400 text-xs mt-0.5">${event.price_cents} MXN</p>
+                {event.price > 0 && (
+                  <p className="text-gray-400 text-xs mt-0.5">${event.price} MXN</p>
                 )}
                 {event.description && (
                   <p className="text-gray-500 text-xs mt-2 line-clamp-2">{event.description}</p>

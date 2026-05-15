@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { sessionId } = await req.json()
-    console.log("Iniciando checkout para sesión:", sessionId, "Usuario:", user.id)
+    console.log("Iniciando checkout. Sesión:", sessionId, "Usuario:", user.id)
 
-    // 1. Obtener la sesión (Tablas físicas)
+    // 1. Obtener la sesión (Usando la nueva columna 'price')
     const { data: session, error: sError } = await supabase
       .from('sessions')
       .select('*, class_types(*)')
@@ -26,27 +26,22 @@ export async function POST(req: NextRequest) {
 
     if (sError || !session) {
       console.error("Error al buscar sesión:", sError?.message)
-      return NextResponse.json({ error: 'Sesión no encontrada', details: sError?.message }, { status: 404 })
+      return NextResponse.json({ error: 'Sesión no encontrada' }, { status: 404 })
     }
 
-    // 2. Obtener disponibilidad (Vista)
-    const { data: avail, error: aError } = await supabase
+    // 2. Obtener disponibilidad desde la Vista
+    const { data: avail } = await supabase
       .from('session_availability')
       .select('spots_left')
       .eq('session_id', sessionId)
       .single()
-
-    if (aError) {
-      console.warn("Error en vista de disponibilidad (usando capacidad base):", aError.message)
-    }
 
     const spotsLeft = avail ? avail.spots_left : session.capacity
     if (spotsLeft <= 0) {
       return NextResponse.json({ error: 'No hay espacios disponibles' }, { status: 400 })
     }
 
-    // 3. Crear reserva (ESTE ES EL PASO QUE ESTÁ FALLANDO)
-    console.log("Intentando insertar reserva en tabla 'bookings'...")
+    // 3. Crear reserva pendiente
     const { data: booking, error: bError } = await supabase
       .from('bookings')
       .insert({ 
@@ -58,33 +53,24 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (bError) {
-      // ESTE LOG APARECERÁ EN TU TERMINAL DE VS CODE
-      console.error("ERROR DETALLADO DE SUPABASE AL INSERTAR RESERVA:", {
-        message: bError.message,
-        details: bError.details,
-        hint: bError.hint,
-        code: bError.code
-      })
-      return NextResponse.json({ 
-        error: 'Error al crear reserva', 
-        details: bError.message,
-        hint: bError.hint 
-      }, { status: 500 })
+      console.error("Error al insertar reserva:", bError.message)
+      return NextResponse.json({ error: 'Error al crear reserva', details: bError.message }, { status: 500 })
     }
 
-    console.log("Reserva creada con ID:", booking.id)
+    // 4. Crear Stripe Checkout Session
+    // Convertimos el precio (ej. 250) a centavos (25000) para Stripe
+    const amountInCents = Math.round(Number(session.price) * 100)
 
-    // 4. Stripe Checkout
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
           currency: 'mxn',
           product_data: { 
-            name: session.class_types?.name || 'Clase de Fitness',
-            description: `Sesión en ${session.location || 'Konnen Studio'}`
+            name: session.class_types?.name || 'Clase Konnen',
+            description: `Sesión en ${session.location}`
           },
-          unit_amount: session.price_cents,
+          unit_amount: amountInCents, 
         },
         quantity: 1,
       }],
@@ -100,7 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: checkoutSession.url })
 
   } catch (err: any) {
-    console.error("Error crítico inesperado en la ruta de checkout:", err)
+    console.error("Error crítico en checkout:", err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
