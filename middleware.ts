@@ -49,7 +49,7 @@ export async function middleware(req: NextRequest) {
     .single()
 
   if (!adminUser) {
-    return NextResponse.redirect(new URL('/', req.url))
+    return NextResponse.redirect(new URL('/admin/login', req.url))
   }
 
   return res
