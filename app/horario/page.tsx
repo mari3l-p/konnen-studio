@@ -8,9 +8,12 @@ export default async function HorarioPage() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const rangeEnd = addWeeks(weekStart, 4)
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const [
     { data: sessionsRaw },
     { data: availability },
+    { data: userBookings },
   ] = await Promise.all([
     supabase
       .from('sessions')
@@ -20,13 +23,28 @@ export default async function HorarioPage() {
       .eq('is_cancelled', false)
       .order('starts_at'),
     supabase.from('session_availability').select('*'),
+    user
+      ? supabase
+          .from('bookings')
+          .select('session_id, status')
+          .eq('user_id', user.id)
+          .in('status', ['confirmed', 'pending'])
+      : Promise.resolve({ data: [] }),
   ])
 
-  // Merge availability into sessions
   const sessions = (sessionsRaw ?? []).map(s => ({
     ...s,
-    session_availability: availability?.find(a => a.session_id === s.id) ?? null,
+    session_availability: (availability ?? []).find(a => a.session_id === s.id) ?? null,
   }))
 
-  return <ScheduleClient sessions={sessions} />
+  const bookedSessionIds = Array.from(
+    new Set((userBookings ?? []).map((b: any) => b.session_id))
+  )
+
+  return (
+    <ScheduleClient
+      sessions={sessions ?? []}
+      bookedSessionIds={bookedSessionIds}
+    />
+  )
 }

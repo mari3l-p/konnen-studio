@@ -10,16 +10,19 @@ import BookingModal from './BookingModal'
 
 type Props = {
   sessions: Session[]
+  bookedSessionIds?: string[]
 }
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
-export default function ScheduleClient({ sessions }: Props) {
+export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }: Props) {
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+
+  const bookedSet = new Set(bookedSessionIds)
 
   const daySessions = sessions.filter((s) =>
     isSameDay(new Date(s.starts_at), selectedDay)
@@ -34,16 +37,20 @@ export default function ScheduleClient({ sessions }: Props) {
 
         {/* Title row */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Horario</h1>
-      
+          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Horario</h1>
+          <button className="flex items-center gap-2 border border-gray-300 bg-white rounded-xl px-3 md:px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Filtros</span>
+          </button>
         </div>
 
         {/* Timezone row */}
         <div className="flex items-center gap-2 text-sm text-gray-600 mb-4 md:mb-6">
           <span className="font-medium hidden sm:inline">Zona horaria:</span>
-          <button className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-3 py-1.5  text-xs md:text-sm">
+          <button className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors text-xs md:text-sm">
             <Globe className="w-3.5 h-3.5 text-gray-500" />
             <span>Mexico - Central Time</span>
+            <ChevronRight className="w-3 h-3 text-gray-400 rotate-90" />
           </button>
         </div>
 
@@ -53,7 +60,7 @@ export default function ScheduleClient({ sessions }: Props) {
           <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-100">
             <button className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900">
               {monthLabel}
-              
+              <ChevronRight className="w-4 h-4 rotate-90 text-gray-400" />
             </button>
             <div className="flex items-center gap-1.5 md:gap-2">
               <button
@@ -93,7 +100,7 @@ export default function ScheduleClient({ sessions }: Props) {
                   onClick={() => setSelectedDay(day)}
                   className={`flex flex-col items-center py-3 md:py-4 transition-colors border-r last:border-r-0 border-gray-100
                     ${isSelected
-                      ? 'bg-tertiary text-white'
+                      ? 'bg-blue-600 text-white'
                       : 'text-gray-600 hover:bg-gray-50'
                     }`}
                 >
@@ -101,7 +108,7 @@ export default function ScheduleClient({ sessions }: Props) {
                     {format(day, 'EEE', { locale: es }).replace('.', '')}
                   </span>
                   <span className={`text-base md:text-lg font-bold leading-none ${
-                    isSelected ? 'text-white' : isToday ? 'text-(--light-tertiary)' : ''
+                    isSelected ? 'text-white' : isToday ? 'text-blue-600' : ''
                   }`}>
                     {format(day, 'd')}
                   </span>
@@ -127,6 +134,7 @@ export default function ScheduleClient({ sessions }: Props) {
               const spotsLeft = session.session_availability?.spots_left ?? 0
               const isFull = spotsLeft <= 0
               const isLow = spotsLeft > 0 && spotsLeft <= 3
+              const isBooked = bookedSet.has(session.id)
 
               return (
                 <div
@@ -173,21 +181,35 @@ export default function ScheduleClient({ sessions }: Props) {
 
                   {/* Right: spots + button */}
                   <div className="flex flex-col items-end gap-1.5 md:gap-2 shrink-0">
-                    {isLow && !isFull && (
-                      <span className="text-green-600 text-xs font-semibold text-right">
+                    {/* Spots warning — only show if not booked */}
+                    {!isBooked && isLow && !isFull && (
+                      <span className="text-green-600 text-xs font-semibold">
                         {spotsLeft} {spotsLeft === 1 ? 'espacio' : 'espacios'}
                       </span>
                     )}
-                    {isFull && (
+                    {!isBooked && isFull && (
                       <span className="text-red-500 text-xs font-semibold">Lleno</span>
                     )}
-                    <button
-                      onClick={() => setSelectedSession(session)}
-                      disabled={isFull}
-                      className="border border-tertiary text-tertiary hover:bg-tertiary hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 md:px-6 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium whitespace-nowrap"
-                    >
-                      Reservar
-                    </button>
+
+                    {isBooked ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-green-600 text-xs font-semibold">✓ Reservada</span>
+                        <button
+                          disabled
+                          className="border border-green-200 text-green-600 bg-green-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
+                        >
+                          Ya reservada
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedSession(session)}
+                        disabled={isFull}
+                        className="border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 md:px-6 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium whitespace-nowrap"
+                      >
+                        Reservar
+                      </button>
+                    )}
                   </div>
                 </div>
               )
