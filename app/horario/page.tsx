@@ -8,12 +8,12 @@ export default async function HorarioPage() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const rangeEnd = addWeeks(weekStart, 4)
 
+  // Get user — null if not logged in
   const { data: { user } } = await supabase.auth.getUser()
 
   const [
     { data: sessionsRaw },
     { data: availability },
-    { data: userBookings },
   ] = await Promise.all([
     supabase
       .from('sessions')
@@ -23,28 +23,30 @@ export default async function HorarioPage() {
       .eq('is_cancelled', false)
       .order('starts_at'),
     supabase.from('session_availability').select('*'),
-    user
-      ? supabase
-          .from('bookings')
-          .select('session_id, status')
-          .eq('user_id', user.id)
-          .in('status', ['confirmed', 'pending'])
-      : Promise.resolve({ data: [] }),
   ])
+
+  // Only fetch user bookings if actually logged in
+  let bookedSessionIds: string[] = []
+  if (user) {
+    const { data: userBookings } = await supabase
+      .from('bookings')
+      .select('session_id')
+      .eq('user_id', user.id)  // ← strict filter by logged-in user
+      .in('status', ['confirmed', 'pending'])
+
+    bookedSessionIds = (userBookings ?? []).map((b: any) => b.session_id)
+  }
 
   const sessions = (sessionsRaw ?? []).map(s => ({
     ...s,
     session_availability: (availability ?? []).find(a => a.session_id === s.id) ?? null,
   }))
 
-  const bookedSessionIds = Array.from(
-    new Set((userBookings ?? []).map((b: any) => b.session_id))
-  )
-
   return (
     <ScheduleClient
       sessions={sessions ?? []}
       bookedSessionIds={bookedSessionIds}
+      isLoggedIn={!!user}
     />
   )
 }

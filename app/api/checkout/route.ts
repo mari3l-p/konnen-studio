@@ -7,86 +7,78 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (authError || !user) {
-      console.error("Error de autenticación:", authError?.message)
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!user) {
+      return NextResponse.json({ error: 'Debes iniciar sesión para reservar' }, { status: 401 })
     }
 
     const { sessionId } = await req.json()
-    console.log("Iniciando checkout. Sesión:", sessionId, "Usuario:", user.id)
 
-    // 1. Obtener la sesión (Usando la nueva columna 'price')
-    const { data: session, error: sError } = await supabase
+    // ✅ Don't join session_availability — it's a view, not a table
+    const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*, class_types(*)')
       .eq('id', sessionId)
       .single()
 
-    if (sError || !session) {
-      console.error("Error al buscar sesión:", sError?.message)
+    if (sessionError || !session) {
+      console.error('Session error:', sessionError?.message)
       return NextResponse.json({ error: 'Sesión no encontrada' }, { status: 404 })
     }
 
-    // 2. Obtener disponibilidad desde la Vista
-    const { data: avail } = await supabase
+    // ✅ Check availability separately from the view
+    const { data: availability } = await supabase
       .from('session_availability')
       .select('spots_left')
       .eq('session_id', sessionId)
       .single()
 
-    const spotsLeft = avail ? avail.spots_left : session.capacity
-    if (spotsLeft <= 0) {
+    if (!availability || availability.spots_left <= 0) {
       return NextResponse.json({ error: 'No hay espacios disponibles' }, { status: 400 })
     }
 
-    // 3. Crear reserva pendiente
-    const { data: booking, error: bError } = await supabase
+    // Check for existing confirmed booking
+    const { data: existing } = await supabase
       .from('bookings')
-      .insert({ 
-        session_id: sessionId, 
-        user_id: user.id, 
-        status: 'pending' 
-      })
-      .select()
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('user_id', user.id)
+      .eq('status', 'confirmed')
       .single()
 
-    if (bError) {
-      console.error("Error al insertar reserva:", bError.message)
-      return NextResponse.json({ error: 'Error al crear reserva', details: bError.message }, { status: 500 })
+    if (existing) {
+      return NextResponse.json({ error: 'Ya tienes una reserva confirmada para esta clase' }, { status: 400 })
     }
 
-    // 4. Crear Stripe Checkout Session
-    // Convertimos el precio (ej. 250) a centavos (25000) para Stripe
-    const amountInCents = Math.round(Number(session.price) * 100)
+    const origin = req.headers.get('origin')
+      || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
+      || 'http://localhost:3000'
 
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
           currency: 'mxn',
-          product_data: { 
-            name: session.class_types?.name || 'Clase Konnen',
-            description: `Sesión en ${session.location}`
-          },
-          unit_amount: amountInCents, 
+          product_data: { name: session.class_types.name },
+          unit_amount: session.price * 100,
         },
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/horario?success=1`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/horario?cancelled=1`,
-      metadata: { 
-        bookingId: booking.id, 
-        userId: user.id 
+      success_url: `${origin}/horario?success=1`,
+      cancel_url: `${origin}/horario?cancelled=1`,
+      customer_email: user.email,
+      metadata: {
+        sessionId: session.id,
+        userId: user.id,
       },
     })
 
     return NextResponse.json({ url: checkoutSession.url })
 
   } catch (err: any) {
-    console.error("Error crítico en checkout:", err)
+    console.error('Checkout error:', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

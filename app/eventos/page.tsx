@@ -59,7 +59,7 @@ export default async function EventosPage() {
                     <p className="font-bold text-gray-900 text-lg mb-1">{event.title}</p>
                     <p className="text-tertiary text-sm font-medium mb-1 capitalize">
                       {format(new Date(event.starts_at), "EEEE d MMMM yyyy · hh:mm aa", { locale: es })}
-                      {event.ends_at && ` — ${format(new Date(event.ends_at), "hh:mm aa", { locale: es })}`}
+                      {event.ends_at && ` — ${format(new Date(event.ends_at), "EEEE d MMMM yyyy ·hh:mm aa", { locale: es })}`}
                     </p>
                     <p className="text-gray-400 text-sm mb-3">{event.location}</p>
                     {event.description && (
@@ -69,7 +69,7 @@ export default async function EventosPage() {
 
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                     <span className="font-bold text-gray-900">
-                      {Number(event.price) === 0 ? 'Gratis' : `$${event.price} MXN`}
+                      {Number(event.price) === 0 ? '' : `$${event.price} MXN`}
                     </span>
                     <button className="bg-tertiary hover:opacity-90 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
                       Registrarse

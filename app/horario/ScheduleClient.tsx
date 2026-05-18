@@ -5,17 +5,24 @@ import { format, addDays, isSameDay, startOfWeek, addWeeks, subWeeks } from 'dat
 import { es } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Globe } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Session } from '@/types'
 import BookingModal from './BookingModal'
 
 type Props = {
   sessions: Session[]
   bookedSessionIds?: string[]
+  isLoggedIn?: boolean
 }
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
-export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }: Props) {
+export default function ScheduleClient({
+  sessions = [],
+  bookedSessionIds = [],
+  isLoggedIn = false,
+}: Props) {
+  const router = useRouter()
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -30,6 +37,14 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
 
   const monthLabel = format(weekStart, 'MMMM yyyy', { locale: es })
     .replace(/^\w/, (c) => c.toUpperCase())
+
+  function handleReserveClick(session: Session) {
+    if (!isLoggedIn) {
+      router.push('/login')
+      return
+    }
+    setSelectedSession(session)
+  }
 
   return (
     <section className="w-full bg-[#f4f7fa] min-h-screen">
@@ -56,7 +71,6 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
 
         {/* Week navigation */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-3 md:mb-4">
-          {/* Month + nav */}
           <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-100">
             <button className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900">
               {monthLabel}
@@ -99,10 +113,7 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
                   key={offset}
                   onClick={() => setSelectedDay(day)}
                   className={`flex flex-col items-center py-3 md:py-4 transition-colors border-r last:border-r-0 border-gray-100
-                    ${isSelected
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    ${isSelected ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <span className="text-[10px] md:text-xs font-medium mb-1 capitalize">
                     {format(day, 'EEE', { locale: es }).replace('.', '')}
@@ -179,19 +190,10 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
                     <p className="text-gray-400 text-xs truncate">{session.location}</p>
                   </div>
 
-                  {/* Right: spots + button */}
+                  {/* Right: status + button */}
                   <div className="flex flex-col items-end gap-1.5 md:gap-2 shrink-0">
-                    {/* Spots warning — only show if not booked */}
-                    {!isBooked && isLow && !isFull && (
-                      <span className="text-green-600 text-xs font-semibold">
-                        {spotsLeft} {spotsLeft === 1 ? 'espacio' : 'espacios'}
-                      </span>
-                    )}
-                    {!isBooked && isFull && (
-                      <span className="text-red-500 text-xs font-semibold">Lleno</span>
-                    )}
-
                     {isBooked ? (
+                      // This user already booked this session
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-green-600 text-xs font-semibold">✓ Reservada</span>
                         <button
@@ -201,14 +203,32 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
                           Ya reservada
                         </button>
                       </div>
+                    ) : isFull ? (
+                      // Session is full
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-red-500 text-xs font-semibold">Sin espacios</span>
+                        <button
+                          disabled
+                          className="border border-red-200 text-red-400 bg-red-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
+                        >
+                          Clase llena
+                        </button>
+                      </div>
                     ) : (
-                      <button
-                        onClick={() => setSelectedSession(session)}
-                        disabled={isFull}
-                        className="border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 md:px-6 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium whitespace-nowrap"
-                      >
-                        Reservar
-                      </button>
+                      // Available to book
+                      <div className="flex flex-col items-end gap-1">
+                        {isLow && (
+                          <span className="text-orange-500 text-xs font-semibold">
+                            {spotsLeft} {spotsLeft === 1 ? 'espacio' : 'espacios'}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleReserveClick(session)}
+                          className="border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors px-3 md:px-6 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium whitespace-nowrap"
+                        >
+                          {isLoggedIn ? 'Reservar' : 'Iniciar sesión'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -216,7 +236,6 @@ export default function ScheduleClient({ sessions = [], bookedSessionIds = [] }:
             })
           )}
         </div>
-
       </div>
 
       {selectedSession && (

@@ -10,12 +10,11 @@ export default async function MembresiasPage() {
   const { data: profile } = await supabase
     .from('profiles').select('*').eq('id', user.id).single()
 
-  // For now bookings with package info — extend when you add user_packages table
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('*, sessions(starts_at, class_types(name))')
+  const { data: userPackages } = await supabase
+    .from('user_packages')
+    .select('*, packages(title, class_type, classes_count)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  return <MembresiastClient profile={profile} bookings={bookings ?? []} />
+  return <MembresiastClient profile={profile} userPackages={userPackages ?? []} />
 }
