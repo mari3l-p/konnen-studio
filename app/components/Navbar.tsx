@@ -227,14 +227,21 @@ export default function Navbar() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true; // Para evitar que se actualice el estado si el componente se desmonta
+
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!isMounted) return; // Detener si el componente ya no existe
+
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name')
           .eq('id', user.id)
           .single()
+
+        if (!isMounted) return;
 
         const parts = (profile?.full_name ?? '').split(' ').filter(Boolean).slice(0, 2)
         const initials = parts.map((p: string) => p[0].toUpperCase()).join('') || '??'
@@ -247,13 +254,23 @@ export default function Navbar() {
       } else {
         setUserData(null)
       }
-      setLoading(false)
+      
+      if (isMounted) setLoading(false)
     }
 
+    // 1. Llamada inicial
     fetchUser()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => fetchUser())
-    return () => subscription.unsubscribe()
+    // 2. Suscripción a cambios futuros (ignorando la inicial para evitar el error de concurrencia)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION') return;
+      fetchUser()
+    })
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe()
+    }
   }, [])
 
   return (
