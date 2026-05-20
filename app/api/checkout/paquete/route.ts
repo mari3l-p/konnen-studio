@@ -12,16 +12,24 @@ export async function POST(req: NextRequest) {
 
     const { packageId } = await req.json()
 
-    const { data: pkg } = await supabase
+    const { data: pkg, error: pkgError } = await supabase
       .from('packages')
       .select('*')
       .eq('id', packageId)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: 'Paquete no encontrado' }, { status: 404 })
+    if (pkgError || !pkg) {
+      return NextResponse.json({ error: 'Paquete no encontrado' }, { status: 404 })
+    }
 
-    // ✅ Build base URL from the request
-    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || 'http://localhost:3000'
+    const price = Number(pkg.price)
+    if (!price || isNaN(price) || price <= 0) {
+      return NextResponse.json({ error: 'Precio del paquete inválido' }, { status: 400 })
+    }
+
+    const origin = req.headers.get('origin')
+      || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
+      || 'http://localhost:3000'
 
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -30,9 +38,12 @@ export async function POST(req: NextRequest) {
           currency: 'mxn',
           product_data: {
             name: `${pkg.title}${pkg.class_type ? ' · ' + pkg.class_type : ''}`,
-            description: pkg.validity ? `Vigencia: ${pkg.validity}` : undefined,
+            description: [
+              pkg.classes_count ? `${pkg.classes_count} clases` : null,
+              pkg.validity ? `Vigencia: ${pkg.validity}` : null,
+            ].filter(Boolean).join(' · ') || undefined,
           },
-          unit_amount: pkg.price * 100,
+          unit_amount: price * 100,
         },
         quantity: 1,
       }],

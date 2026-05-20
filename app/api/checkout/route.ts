@@ -1,3 +1,4 @@
+// app/api/checkout/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
@@ -45,12 +46,20 @@ export async function POST(req: NextRequest) {
       .eq('session_id', sessionId)
       .eq('user_id', user.id)
       .eq('status', 'confirmed')
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return NextResponse.json({ error: 'Ya tienes una reserva confirmada para esta clase' }, { status: 400 })
     }
 
+    // 🚨 BLOQUEO DE SEGURIDAD: Evita el bypass desactivando compras directas individuales
+    return NextResponse.json({
+      error: 'Las clases individuales no están disponibles para compra directa. Por favor, adquiere un paquete en la sección correspondiente.'
+    }, { status: 400 })
+
+    /* -----------------------------------------------------------------
+       El código de Stripe queda deshabilitado e inaccesible aquí abajo:
+       -----------------------------------------------------------------
     const origin = req.headers.get('origin')
       || req.headers.get('referer')?.split('/').slice(0, 3).join('/')
       || 'http://localhost:3000'
@@ -76,6 +85,7 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({ url: checkoutSession.url })
+    ----------------------------------------------------------------- */
 
   } catch (err: any) {
     console.error('Checkout error:', err.message)
