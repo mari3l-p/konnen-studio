@@ -17,6 +17,15 @@ type Props = {
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
+// Función mágica para forzar cualquier fecha a la zona horaria de México
+function toMexicoTime(dateInput: string | Date) {
+  const date = new Date(dateInput);
+  // Obtenemos la hora en texto como si estuviéramos físicamente en Mérida/CDMX
+  const mxString = date.toLocaleString("en-US", { timeZone: "America/Mexico_City" });
+  // Creamos un nuevo objeto de fecha con esa hora forzada
+  return new Date(mxString);
+}
+
 export default function ScheduleClient({
   sessions = [],
   bookedSessionIds = [],
@@ -24,15 +33,15 @@ export default function ScheduleClient({
 }: Props) {
   const router = useRouter()
   const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    startOfWeek(toMexicoTime(new Date()), { weekStartsOn: 1 })
   )
-  const [selectedDay, setSelectedDay] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState(toMexicoTime(new Date()))
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
   const bookedSet = new Set(bookedSessionIds)
 
   const daySessions = sessions.filter((s) =>
-    isSameDay(new Date(s.starts_at), selectedDay)
+    isSameDay(toMexicoTime(s.starts_at), selectedDay)
   )
 
   const monthLabel = format(weekStart, 'MMMM yyyy', { locale: es })
@@ -53,10 +62,7 @@ export default function ScheduleClient({
         {/* Title row */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Horario</h1>
-          <button className="flex items-center gap-2 border border-gray-300 bg-white rounded-xl px-3 md:px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-            <SlidersHorizontal className="w-4 h-4" />
-            <span className="hidden sm:inline">Filtros</span>
-          </button>
+          
         </div>
 
         {/* Timezone row */}
@@ -65,7 +71,6 @@ export default function ScheduleClient({
           <button className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors text-xs md:text-sm">
             <Globe className="w-3.5 h-3.5 text-gray-500" />
             <span>Mexico - Central Time</span>
-            <ChevronRight className="w-3 h-3 text-gray-400 rotate-90" />
           </button>
         </div>
 
@@ -85,7 +90,7 @@ export default function ScheduleClient({
               </button>
               <button
                 onClick={() => {
-                  const today = new Date()
+                  const today = toMexicoTime(new Date())
                   setWeekStart(startOfWeek(today, { weekStartsOn: 1 }))
                   setSelectedDay(today)
                 }}
@@ -107,7 +112,7 @@ export default function ScheduleClient({
             {DAYS.map((offset) => {
               const day = addDays(weekStart, offset)
               const isSelected = isSameDay(day, selectedDay)
-              const isToday = isSameDay(day, new Date())
+              const isToday = isSameDay(day, toMexicoTime(new Date()))
               return (
                 <button
                   key={offset}
@@ -157,7 +162,8 @@ export default function ScheduleClient({
                   {/* Time */}
                   <div className="w-16 md:w-20 shrink-0">
                     <p className="font-bold text-gray-900 text-sm md:text-base">
-                      {format(new Date(session.starts_at), 'hh:mm aa')}
+                      {/* AQUÍ ESTÁ LA CORRECCIÓN CLAVE PARA LA HORA */}
+                      {format(toMexicoTime(session.starts_at), 'hh:mm aa')}
                     </p>
                     <p className="text-gray-400 text-xs mt-0.5">
                       {session.class_types.duration_mins} mins

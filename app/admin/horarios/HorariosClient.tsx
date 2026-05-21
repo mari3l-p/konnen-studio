@@ -14,26 +14,42 @@ type Props = {
   instructors: Instructor[]
 }
 
+// Función para forzar la visualización en hora de México en la tabla
+function toMexicoTime(dateInput: string | Date) {
+  const date = new Date(dateInput);
+  const mxString = date.toLocaleString("en-US", { timeZone: "America/Mexico_City" });
+  return new Date(mxString);
+}
+
 export default function HorariosClient({ sessions: initial, classTypes, instructors }: Props) {
   const router = useRouter()
   const [sessions, setSessions] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   
-  // 1. Estado inicial corregido: Usamos 'price' en lugar de 'price_cents'
   const [form, setForm] = useState({
     class_type_id: '',
     instructor_id: '',
     starts_at: '',
     capacity: 15,
-    price: 150, // Valor directo en pesos
+    price: 150, 
     location: 'flexroom',
   })
 
   async function handleCreate() {
     setLoading(true)
-    // 2. Se envía el objeto 'form' que ahora contiene 'price' y NO 'price_cents'
-    const { error } = await supabase.from('sessions').insert([form])
+
+    // MAGIA: Tomamos la hora que escribiste (ej. "2026-05-20T22:00")
+    // y le pegamos explícitamente la zona horaria de Mérida/CDMX (-06:00)
+    const startsAtMexico = `${form.starts_at}:00-06:00`
+
+    // Creamos una copia del formulario con la fecha corregida
+    const payload = {
+      ...form,
+      starts_at: startsAtMexico
+    }
+
+    const { error } = await supabase.from('sessions').insert([payload])
     
     if (error) {
       console.error("Error creating session:", error.message)
@@ -41,7 +57,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
     } else {
       router.refresh()
       setShowForm(false)
-      // Resetear formulario con el nuevo campo
+      // Resetear formulario
       setForm({
         class_type_id: '',
         instructor_id: '',
@@ -120,7 +136,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-400 uppercase tracking-widest">Fecha y hora</label>
+                <label className="text-xs text-gray-400 uppercase tracking-widest">Fecha y hora (Hora México)</label>
                 <input
                   type="datetime-local"
                   className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
@@ -129,7 +145,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 />
               </div>
 
-              {/* 3. Input de precio corregido */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-gray-400 uppercase tracking-widest">Precio (MXN)</label>
                 <input
@@ -183,7 +198,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-widest">
-                <th className="px-6 py-4">Fecha y hora</th>
+                <th className="px-6 py-4">Fecha y hora (MX)</th>
                 <th className="px-6 py-4">Clase</th>
                 <th className="px-6 py-4">Precio</th>
                 <th className="px-6 py-4">Estado</th>
@@ -194,10 +209,10 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               {sessions.map((s) => (
                 <tr key={s.id} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
                   <td className="px-6 py-4 text-gray-300">
-                    {format(new Date(s.starts_at), "dd MMM · hh:mm aa", { locale: es })}
+                    {/* Imprimimos la fecha forzando la zona de México */}
+                    {format(toMexicoTime(s.starts_at), "dd MMM · hh:mm aa", { locale: es })}
                   </td>
                   <td className="px-6 py-4 font-medium">{s.class_types?.name}</td>
-                  {/* 4. Visualización corregida de s.price */}
                   <td className="px-6 py-4 text-gray-400">${s.price}</td>
                   <td className="px-6 py-4">
                     {s.is_cancelled ? (

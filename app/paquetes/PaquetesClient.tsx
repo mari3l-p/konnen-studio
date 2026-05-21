@@ -29,16 +29,19 @@ function PackageCard({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-5">
-      <div className="flex items-center justify-between gap-4">
+      {/* CAMBIO PRINCIPAL: flex-col en móviles, flex-row en tablets/desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        {/* Lado izquierdo: Título y botón de detalles */}
         <div className="flex-1 min-w-0">
-          <p className="text-gray-900 text-base">
+          <p className="text-gray-900 text-base leading-tight">
             <span className="font-bold">{pkg.title}</span>{' '}
-            <span className="text-gray-500">{pkg.class_type}</span>
+            <span className="text-gray-500 block sm:inline mt-0.5 sm:mt-0">{pkg.class_type}</span>
           </p>
           {hasDetails && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="flex items-center gap-1 text-gray-500 text-xs mt-1 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors"
             >
               Incluye
               {expanded
@@ -48,20 +51,25 @@ function PackageCard({
           )}
         </div>
 
-        <p className="font-semibold text-gray-900 text-base shrink-0">
-          ${pkg.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-        </p>
+        {/* Lado derecho: Precio y botón de compra */}
+        {/* En móviles, se separa del texto hacia abajo y manda el precio a la izquierda y el botón a la derecha */}
+        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-gray-100 sm:border-0">
+          <p className="font-semibold text-gray-900 text-lg sm:text-base shrink-0">
+            ${pkg.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          </p>
 
-        <button
-          onClick={() => onSelect(pkg)}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
-        >
-          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          Seleccionar
-        </button>
+          <button
+            onClick={() => onSelect(pkg)}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
+          >
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Seleccionar
+          </button>
+        </div>
       </div>
 
+      {/* Detalles expandibles */}
       {expanded && hasDetails && (
         <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-1.5 text-sm text-gray-500">
           {pkg.classes_count && (
