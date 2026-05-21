@@ -210,17 +210,6 @@ export default function PerfilClient({ profile }: { profile: Profile | null }) {
         </div>
       </div>
 
-      {/* Payment method card */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 flex items-center justify-between">
-        <div>
-          <h3 className="font-bold text-gray-900">Método de pago</h3>
-          <p className="text-sm text-gray-400">Gestiona tus tarjetas guardadas</p>
-        </div>
-        <button className="text-blue-600 text-sm font-bold hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors">
-          + Agregar
-        </button>
-      </div>
-
     </ProfileLayout>
   )
 }
