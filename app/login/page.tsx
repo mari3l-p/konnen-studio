@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 type Mode = 'login' | 'register'
 
@@ -11,6 +10,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('login')
   const [fullName, setFullName] = useState('')
+  const [birthday, setBirthday] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,14 +36,25 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
+      if (!birthday) {
+        setError('Por favor ingresa tu fecha de nacimiento')
+        setLoading(false)
+        return
+      }
+
+      // 👈 Se envía el birthday en la metadata
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName },
+          data: { 
+            full_name: fullName,
+            birthday: birthday 
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback-client`,
         },
       })
+
       if (error) {
         setError(error.message)
       } else {
@@ -70,17 +81,31 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {mode === 'register' && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-500 font-medium">Nombre completo</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Juan López"
-                required
-                className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">Nombre completo</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Juan López"
+                  required
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+              {/* 👈 Nuevo campo de Fecha de Nacimiento */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">Fecha de nacimiento</label>
+                <input
+                  type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  required
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors text-gray-700"
+                />
+              </div>
+            </>
           )}
 
           <div className="flex flex-col gap-1.5">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { siInstagram, siYoutube, siFacebook } from "simple-icons";
+import { siInstagram, siYoutube, siFacebook, siTiktok } from "simple-icons";
 
 const NAV_LINKS = [
   { label: "Inicio", href: "/" },
@@ -11,6 +11,7 @@ const NAV_LINKS = [
 
 const SOCIAL = [
   { icon: siInstagram, href: "https://www.instagram.com/konnen.studio/", label: "Instagram" },
+  { icon: siTiktok, href: "https://www.tiktok.com/@konnen.sc?_r=1&_t=ZS-96h0tBFSYfl", label: "TikTok" },
   // { icon: siFacebook, href: "...", label: "Facebook" },
   // { icon: siYoutube, href: "...", label: "YouTube" },
 ];

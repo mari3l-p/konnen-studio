@@ -32,7 +32,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
     instructor_id: '',
     starts_at: '',
     capacity: 15,
-    price: 150, 
     location: 'Konnen Studio',
   })
 
@@ -63,7 +62,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
         instructor_id: '',
         starts_at: '',
         capacity: 15,
-        price: 150,
         location: 'Konnen Studio',
       })
     }
@@ -146,16 +144,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-400 uppercase tracking-widest">Precio (MXN)</label>
-                <input
-                  type="number"
-                  className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
                 <label className="text-xs text-gray-400 uppercase tracking-widest">Capacidad</label>
                 <input
                   type="number"
@@ -165,7 +153,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 />
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 md:col-span-2">
                 <label className="text-xs text-gray-400 uppercase tracking-widest">Ubicación</label>
                 <input
                   type="text"
@@ -200,7 +188,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-widest">
                 <th className="px-6 py-4">Fecha y hora (MX)</th>
                 <th className="px-6 py-4">Clase</th>
-                <th className="px-6 py-4">Precio</th>
                 <th className="px-6 py-4">Estado</th>
                 <th className="px-6 py-4"></th>
               </tr>
@@ -213,7 +200,6 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                     {format(toMexicoTime(s.starts_at), "dd MMM · hh:mm aa", { locale: es })}
                   </td>
                   <td className="px-6 py-4 font-medium">{s.class_types?.name}</td>
-                  <td className="px-6 py-4 text-gray-400">${s.price}</td>
                   <td className="px-6 py-4">
                     {s.is_cancelled ? (
                       <span className="text-red-400 text-xs font-semibold">Cancelada</span>

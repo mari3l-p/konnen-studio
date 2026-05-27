@@ -15,6 +15,7 @@ import {
   Menu,
   ExternalLink,
   ShoppingBag,
+  Cake,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -27,6 +28,7 @@ const NAV = [
   { label: 'Paquetes', href: '/admin/paquetes', icon: ShoppingBag },
   { label: 'Clientes', href: '/admin/clientes', icon: Users },
   { label: 'Eventos', href: '/admin/eventos', icon: Ticket },
+  { label: 'Birthday', href: '/admin/birthday', icon: Cake },
   { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
 ]
 
