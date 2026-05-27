@@ -10,7 +10,7 @@ const SERVICES = [
   },
   {
     title: "Indoor Cycling",
-    description: "Vive una experiencia de alta intensidad sobre la bicicleta al ritmo de los mejores beats. Intervalos de resistencia y velocidad diseñados para quemar calorías y liberar endorfinas.",
+    description: "No es solo una clase, es una experiencia de alta energía con música envolvente. Haz ejercicio, fortalece piernas y core y libera endorfinas al ritmo de cada pedaleado!",
     image: "/Indoor.jpeg",
     objectPosition: "center center",
   },
@@ -18,7 +18,7 @@ const SERVICES = [
     title: "Define & Tone",
     description: "Entrenamiento al beat de la música bajo tiempos cortos y secuencias rápidas. Diseñado para trabajar el cuerpo de forma eficiente, generando resultados visibles en firmeza, fuerza y definición.",
     image: "/define.jpeg",
-    extra: "Alto impacto",
+    extra: "Alto impacto cardiovascular",
     objectPosition: "center center",
   },
 ];

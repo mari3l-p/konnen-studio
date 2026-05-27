@@ -33,7 +33,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
     starts_at: '',
     capacity: 15,
     price: 150, 
-    location: 'flexroom',
+    location: 'Konnen Studio',
   })
 
   async function handleCreate() {
@@ -64,7 +64,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
         starts_at: '',
         capacity: 15,
         price: 150,
-        location: 'flexroom',
+        location: 'Konnen Studio',
       })
     }
     setLoading(false)

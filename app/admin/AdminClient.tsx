@@ -25,7 +25,7 @@ export default function AdminClient({ sessions: initial, classTypes, instructors
     starts_at: '',
     capacity: 15,
     price: 150,
-    location: 'flexroom',
+    location: 'Konnen Studio',
   })
 
   async function handleCreate() {

@@ -6,6 +6,11 @@ const LINKS = [
     label: "Instagram",
     href: "https://www.instagram.com/konnen.studio/",
     icon: siInstagram,
+  },
+  {
+    label: "TikTok",
+    href: "https://www.tiktok.com/@konnen.sc?_r=1&_t=ZS-96h0tBFSYfl",
+    icon: siTiktok,
   }
 ];
 

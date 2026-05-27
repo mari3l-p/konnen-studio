@@ -71,9 +71,9 @@ export default async function EventosPage() {
                     <span className="font-bold text-gray-900">
                       {Number(event.price) === 0 ? '' : `$${event.price} MXN`}
                     </span>
-                    {/* <button className="bg-tertiary hover:opacity-90 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
-                      Registrarse en la lista de espera
-                    </button> */}
+                    <button className="hover:text-white hover:bg-tertiary text-tertiary border-2 border-tertiary text-sm font-semibold px-5 py-2 rounded-xl transition-colors">
+                      Registrarse
+                    </button>
                   </div>
                 </div>
               </div>

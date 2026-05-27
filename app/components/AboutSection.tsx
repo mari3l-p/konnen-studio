@@ -2,15 +2,15 @@ import Image from "next/image";
 
 export default function AboutSection() {
   return (
-    <section className="w-full bg-[#f4f7fa] py-16 md:py-24 ">
+    <section className="w-full bg-[#f4f7fa] py-16 md:py-24">
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         
         {/* Lado Izquierdo: Imagen */}
-        <div className="relative aspect-square md:aspect-video lg:aspect-square rounded-sm shadow-sm">
+        <div className="relative w-full rounded-sm shadow-sm overflow-hidden">
           <img
-            src="/groupImg.jpg"
+            src="/picGrupo.jpeg"
             alt="Equipo de Konnen Studio"
-            className="object-cover"
+            className="w-full h-auto object-cover"
           />
         </div>
 
@@ -32,7 +32,7 @@ export default function AboutSection() {
           </div>
 
           <button className="border-2 font-bold text-tertiary px-10 py-3 rounded-md hover:bg-tertiary hover:text-white transition-all duration-300">
-            Inicia ya
+            <a href="/paquetes">Inicia ya</a>
           </button>
         </div>
 
