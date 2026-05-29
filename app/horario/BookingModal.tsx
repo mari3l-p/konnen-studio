@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Package } from 'lucide-react'
+import { X, Package, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Session } from '@/types'
@@ -12,7 +12,10 @@ type UserPackage = {
   id: string
   classes_remaining: number
   expires_at: string
-  packages: { title: string; class_type: string }
+  packages: {
+    title: string
+    class_type: string
+  }
 }
 
 type Props = {
@@ -20,19 +23,58 @@ type Props = {
   onClose: () => void
 }
 
+// Check if a package's class_type is compatible with the session's discipline
+function isCompatible(packageClassType: string, sessionDiscipline: string | null): boolean {
+  if (!sessionDiscipline) return true // if no discipline set, allow all
+  if (packageClassType === 'Todas las disciplinas') return true
+
+  const pkg = packageClassType.toLowerCase()
+  const disc = sessionDiscipline.toLowerCase()
+
+  // Indoor Cycling
+  if (pkg.includes('indoor') && disc.includes('indoor')) return true
+  if (pkg.includes('cycling') && disc.includes('cycling')) return true
+
+  // Sculpt / Tone
+  if ((pkg.includes('sculpt') || pkg.includes('tone')) &&
+      (disc.includes('sculpt') || disc.includes('tone'))) return true
+
+  return false
+}
+
 export default function BookingModal({ session, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [userPackages, setUserPackages] = useState<UserPackage[]>([])
+  const [allPackages, setAllPackages] = useState<UserPackage[]>([])
+  const [compatiblePackages, setCompatiblePackages] = useState<UserPackage[]>([])
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
   const [loadingPackages, setLoadingPackages] = useState(true)
+  const [sessionDiscipline, setSessionDiscipline] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchPackages() {
+    async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoadingPackages(false); return }
 
+      // Fetch the discipline of this class type
+      const { data: classType } = await supabase
+        .from('class_types')
+        .select('discipline')
+        .eq('id', session.class_types.id ?? session.class_types.name)
+        .single()
+
+      // Also try by name if id isn't available
+      const { data: classTypeByName } = await supabase
+        .from('class_types')
+        .select('discipline')
+        .eq('name', session.class_types.name)
+        .single()
+
+      const disc = classType?.discipline ?? classTypeByName?.discipline ?? null
+      setSessionDiscipline(disc)
+
+      // Fetch active user packages
       const { data } = await supabase
         .from('user_packages')
         .select('*, packages(title, class_type)')
@@ -40,18 +82,25 @@ export default function BookingModal({ session, onClose }: Props) {
         .eq('status', 'active')
         .gt('classes_remaining', 0)
         .gt('expires_at', new Date().toISOString())
-        .order('expires_at', { ascending: true }) // show soonest to expire first
+        .order('expires_at', { ascending: true })
 
-      setUserPackages(data ?? [])
-      if (data && data.length > 0) setSelectedPackage(data[0].id)
+      const pkgs = data ?? []
+      setAllPackages(pkgs)
+
+      // Filter to only compatible packages
+      const compatible = pkgs.filter(up =>
+        isCompatible(up.packages.class_type, disc)
+      )
+      setCompatiblePackages(compatible)
+
+      if (compatible.length > 0) setSelectedPackage(compatible[0].id)
       setLoadingPackages(false)
     }
-    fetchPackages()
+    fetchData()
   }, [])
 
   async function handleReserve() {
     if (!selectedPackage) return
-
     setLoading(true)
     setError(null)
 
@@ -74,6 +123,9 @@ export default function BookingModal({ session, onClose }: Props) {
       setLoading(false)
     }
   }
+
+  const hasNoPackages = !loadingPackages && allPackages.length === 0
+  const hasIncompatibleOnly = !loadingPackages && allPackages.length > 0 && compatiblePackages.length === 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -106,18 +158,22 @@ export default function BookingModal({ session, onClose }: Props) {
             <span className="text-gray-500">Espacios disponibles</span>
             <span className="font-medium">{session.session_availability?.spots_left ?? '—'}</span>
           </div>
+          {sessionDiscipline && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">Disciplina</span>
+              <span className="font-medium text-blue-600">{sessionDiscipline}</span>
+            </div>
+          )}
         </div>
 
-        {/* Package selector or no-package message */}
         {loadingPackages ? (
           <div className="py-4 text-center text-gray-400 text-sm">Cargando paquetes...</div>
-        ) : userPackages.length === 0 ? (
-          // No active packages — block and redirect
+
+        ) : hasNoPackages ? (
+          // No packages at all
           <div className="flex flex-col gap-3">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
-              <p className="font-semibold text-amber-800 mb-1">
-                Necesitas un paquete activo
-              </p>
+              <p className="font-semibold text-amber-800 mb-1">Necesitas un paquete activo</p>
               <p className="text-amber-700">
                 Para reservar una clase necesitas adquirir un paquete primero.
               </p>
@@ -128,22 +184,61 @@ export default function BookingModal({ session, onClose }: Props) {
             >
               Ver paquetes disponibles
             </button>
-            <button
-              onClick={onClose}
-              className="w-full text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
-            >
+            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">
               Cancelar
             </button>
           </div>
+
+        ) : hasIncompatibleOnly ? (
+          // Has packages but none work for this class type
+          <div className="flex flex-col gap-3">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
+              <div className="flex gap-2 items-start">
+                <AlertCircle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-orange-800 mb-1">
+                    Paquete incompatible
+                  </p>
+                  <p className="text-orange-700">
+                    Tus paquetes activos no incluyen clases de{' '}
+                    <strong>{sessionDiscipline ?? session.class_types.name}</strong>.
+                    Necesitas un paquete para esta disciplina.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Show what they have */}
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-500 font-medium mb-2">Tus paquetes activos:</p>
+              {allPackages.map(up => (
+                <div key={up.id} className="flex justify-between text-xs text-gray-600 py-1">
+                  <span>{up.packages.title} · {up.packages.class_type}</span>
+                  <span className="text-gray-400">{up.classes_remaining} clases</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => { onClose(); router.push('/paquetes') }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
+            >
+              Comprar paquete para esta disciplina
+            </button>
+            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">
+              Cancelar
+            </button>
+          </div>
+
         ) : (
-          // Has packages — let them pick
+          // Has compatible packages — show selector
           <div className="flex flex-col gap-3">
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <Package className="w-4 h-4 text-blue-600" />
               Selecciona tu paquete
             </p>
 
-            {userPackages.map(up => (
+            {compatiblePackages.map(up => (
               <button
                 key={up.id}
                 onClick={() => setSelectedPackage(up.id)}

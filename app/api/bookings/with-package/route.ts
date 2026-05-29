@@ -15,10 +15,10 @@ export async function POST(req: NextRequest) {
 
     const { sessionId, userPackageId } = await req.json()
 
-    // Verify package belongs to user, is active, has credits, and hasn't expired
+    // Verify package is valid
     const { data: userPackage, error: pkgError } = await supabaseAdmin
       .from('user_packages')
-      .select('*')
+      .select('*, packages(title, class_type)')
       .eq('id', userPackageId)
       .eq('user_id', user.id)
       .eq('status', 'active')
@@ -32,7 +32,29 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Check session exists and has spots
+    // Fetch session discipline
+    const { data: sessionData } = await supabaseAdmin
+      .from('sessions')
+      .select('class_types(name, discipline)')
+      .eq('id', sessionId)
+      .single()
+
+    const sessionDiscipline: string | null = (sessionData?.class_types as any)?.discipline ?? null
+    const packageClassType: string = (userPackage.packages as any)?.class_type ?? ''
+
+    // Validate discipline compatibility
+    if (
+      sessionDiscipline &&
+      packageClassType !== 'Todas las disciplinas' &&
+      !packageClassType.toLowerCase().includes(sessionDiscipline.toLowerCase()) &&
+      !sessionDiscipline.toLowerCase().includes(packageClassType.toLowerCase())
+    ) {
+      return NextResponse.json({
+        error: `Este paquete es para ${packageClassType} y no puede usarse para reservar ${sessionDiscipline}`
+      }, { status: 400 })
+    }
+
+    // Check session availability
     const { data: availability } = await supabaseAdmin
       .from('session_availability')
       .select('spots_left')
@@ -43,7 +65,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No hay espacios disponibles' }, { status: 400 })
     }
 
-    // Check no duplicate confirmed booking
+    // Check no duplicate
     const { data: existing } = await supabaseAdmin
       .from('bookings')
       .select('id')
@@ -56,7 +78,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ya tienes una reserva para esta clase' }, { status: 400 })
     }
 
-    // Create confirmed booking — tied to the package
+    // Create booking
     const { error: bookingError } = await supabaseAdmin
       .from('bookings')
       .insert({
@@ -70,14 +92,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: bookingError.message }, { status: 500 })
     }
 
-    // Deduct one class from the package
+    // Deduct class
     const newRemaining = userPackage.classes_remaining - 1
-
     await supabaseAdmin
       .from('user_packages')
       .update({
         classes_remaining: newRemaining,
-        // Auto-expire the package if no classes left
         status: newRemaining === 0 ? 'expired' : 'active',
       })
       .eq('id', userPackageId)
