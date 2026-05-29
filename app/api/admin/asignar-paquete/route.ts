@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 // 1. Pon aquí tu correo de administrador (solo este correo podrá hacer esto)
-const ADMIN_EMAILS = ['mari3lpalacio@gmail.com'] 
+const ADMIN_EMAILS = ['studiokonnen@gmail.com'] 
 
 export async function POST(req: NextRequest) {
   try {

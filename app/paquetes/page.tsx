@@ -7,7 +7,7 @@ export default async function PaquetesPage() {
   .from('packages')
   .select('id, title, validity, validity_days, class_type, classes_count, price, note, is_active, sort_order')
   .eq('is_active', true)
-  .order('sort_order')
+  .order('price', { ascending: true })
 
   return <PaquetesClient packages={packages ?? []} />
 }
