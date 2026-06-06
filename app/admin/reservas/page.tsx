@@ -2,9 +2,17 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+// Función para convertir siempre a hora de México
+function toMexicoTime(dateInput: string | Date) {
+  const date = new Date(dateInput)
+  const mxString = date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' })
+  return new Date(mxString)
+}
+
 export default async function ReservasPage() {
   const supabase = await createSupabaseServerClient()
 
+  // 1. Consultar reservas SIN el join de perfiles
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select(`
@@ -19,6 +27,19 @@ export default async function ReservasPage() {
     .limit(100)
 
   if (error) console.error('Reservas error:', error.message)
+
+  // 2. Consultar perfiles por separado
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+
+  // 3. Crear un mapa para buscar rápidamente el nombre por el ID del usuario
+  const profileMap: Record<string, string> = {}
+  if (profiles) {
+    profiles.forEach(p => {
+      profileMap[p.id] = p.full_name
+    })
+  }
 
   const statusColors: Record<string, string> = {
     confirmed: 'text-green-400 bg-green-500/10',
@@ -59,10 +80,19 @@ export default async function ReservasPage() {
                 key={b.id}
                 className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors"
               >
-                <td className="px-6 py-4 text-gray-300 text-xs font-mono truncate max-w-35">
-                  {b.user_id}
+                <td className="px-6 py-4">
+                  <div className="flex flex-col">
+                    <span className="text-white font-medium">
+                      {/* 👇 Usamos el mapa para buscar el nombre */}
+                      {profileMap[b.user_id] || 'Usuario sin nombre'}
+                    </span>
+                    <span className="text-gray-500 text-[11px] font-mono mt-0.5 truncate max-w-32">
+                      ID: {b.user_id.split('-')[0]}...
+                    </span>
+                  </div>
                 </td>
-                <td className="px-6 py-4 font-medium">
+                
+                <td className="px-6 py-4 font-medium text-white">
                   {b.sessions?.class_types?.name ?? '—'}
                 </td>
                 <td className="px-6 py-4 text-gray-400">
@@ -70,15 +100,15 @@ export default async function ReservasPage() {
                 </td>
                 <td className="px-6 py-4 text-gray-400">
                   {b.sessions?.starts_at
-                    ? format(new Date(b.sessions.starts_at), "dd MMM · hh:mm aa", { locale: es })
+                    ? format(toMexicoTime(b.sessions.starts_at), "dd MMM · hh:mm aa", { locale: es })
                     : '—'}
                 </td>
                 <td className="px-6 py-4 text-gray-400">
-                  {format(new Date(b.created_at), "dd MMM yyyy", { locale: es })}
+                  {format(toMexicoTime(b.created_at), "dd MMM yyyy", { locale: es })}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[b.status] ?? ''}`}>
-                    {b.status}
+                    {b.status === 'confirmed' ? 'Confirmada' : b.status === 'pending' ? 'Pendiente' : b.status === 'cancelled' ? 'Cancelada' : b.status === 'refunded' ? 'Reembolsada' : b.status}
                   </span>
                 </td>
               </tr>

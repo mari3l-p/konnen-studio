@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import ProfileLayout from '@/app/perfil/ProfileLayout'
@@ -23,10 +23,24 @@ export default function MembresiastClient({
   profile: Profile | null
   userPackages: UserPackage[]
 }) {
+  const [isMounted, setIsMounted] = useState(false)
   const [tab, setTab] = useState<'active' | 'expired'>('active')
 
-  const active = userPackages.filter(p => p.status === 'active')
-  const expired = userPackages.filter(p => p.status !== 'active')
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Función para determinar si el paquete está realmente activo
+  const checkIsActive = (p: UserPackage) => {
+    const isExpiredDate = new Date(p.expires_at) < new Date()
+    const hasClasses = p.classes_remaining > 0
+    return p.status === 'active' && !isExpiredDate && hasClasses
+  }
+
+  // Filtramos usando nuestra nueva función
+  const active = userPackages.filter(p => checkIsActive(p))
+  const expired = userPackages.filter(p => !checkIsActive(p))
+  
   const shown = tab === 'active' ? active : expired
 
   return (
@@ -47,7 +61,12 @@ export default function MembresiastClient({
           ))}
         </div>
 
-        {shown.length === 0 ? (
+        {/* Prevenimos el error de hidratación no renderizando las listas hasta montar el componente */}
+        {!isMounted ? (
+           <div className="py-10 text-center text-gray-400 text-sm animate-pulse">
+             Cargando paquetes...
+           </div>
+        ) : shown.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-gray-400 text-sm mb-4">
               {tab === 'active' ? 'No tienes paquetes activos.' : 'No tienes paquetes expirados.'}
@@ -67,6 +86,9 @@ export default function MembresiastClient({
               const total = up.packages?.classes_count ?? 1
               const used = total - up.classes_remaining
               const pct = Math.round((up.classes_remaining / total) * 100)
+              
+              // Usamos el estado real para pintar los estilos de la etiqueta, no solo up.status
+              const isActuallyActive = checkIsActive(up)
 
               return (
                 <div key={up.id} className="p-5 bg-gray-50 rounded-2xl border border-gray-100">
@@ -76,8 +98,8 @@ export default function MembresiastClient({
                       <p className="text-gray-400 text-xs mt-0.5">{up.packages?.class_type}</p>
                     </div>
                     <span className={`text-xs font-semibold px-3 py-1 rounded-full
-                      ${up.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
-                      {up.status === 'active' ? 'Activo' : 'Expirado'}
+                      ${isActuallyActive ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                      {isActuallyActive ? 'Activo' : 'Expirado'}
                     </span>
                   </div>
 
@@ -89,7 +111,7 @@ export default function MembresiastClient({
                     </div>
                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-600 rounded-full transition-all"
+                        className={`h-full rounded-full transition-all ${isActuallyActive ? 'bg-blue-600' : 'bg-gray-400'}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>

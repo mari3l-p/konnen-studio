@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +28,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Paquete no encontrado' }, { status: 404 })
     }
 
+    // ✅ Block if it's a first class package and user already bought one
+    if (pkg.is_first_class) {
+      const { data: previousPurchase } = await supabaseAdmin
+        .from('user_packages')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('package_id', packageId)
+        .limit(1)
+        .single()
+
+      // Also check other first-class packages (any package with is_first_class = true)
+      const { data: anyFirstClass } = await supabaseAdmin
+        .from('user_packages')
+        .select('id, packages(is_first_class)')
+        .eq('user_id', user.id)
+        .limit(50)
+
+      const hasUsedFirstClass = anyFirstClass?.some(
+        (up: any) => up.packages?.is_first_class === true
+      )
+
+      if (previousPurchase || hasUsedFirstClass) {
+        return NextResponse.json({
+          error: 'El paquete Primera Clase solo puede adquirirse una vez por usuario. Explora nuestros otros paquetes.'
+        }, { status: 400 })
+      }
+    }
+
     const price = Number(pkg.price)
     if (!price || isNaN(price) || price <= 0) {
       return NextResponse.json({ error: 'Precio del paquete inválido' }, { status: 400 })
@@ -39,7 +73,7 @@ export async function POST(req: NextRequest) {
           product_data: {
             name: `${pkg.title}${pkg.class_type ? ' · ' + pkg.class_type : ''}`,
             description: [
-              pkg.classes_count ? `${pkg.classes_count} clases` : null,
+              pkg.classes_count ? `${pkg.classes_count} ${pkg.classes_count === 1 ? 'clase' : 'clases'}` : null,
               pkg.validity ? `Vigencia: ${pkg.validity}` : null,
             ].filter(Boolean).join(' · ') || undefined,
           },

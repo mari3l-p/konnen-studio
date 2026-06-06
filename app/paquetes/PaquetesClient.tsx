@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronDown, ChevronUp, Loader2, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -13,32 +13,52 @@ type Package = {
   classes_count: number | null
   price: number
   note: string | null
+  is_first_class: boolean
 }
 
 function PackageCard({
   pkg,
   onSelect,
   loading,
+  alreadyPurchasedFirstClass,
 }: {
   pkg: Package
   onSelect: (pkg: Package) => void
   loading: boolean
+  alreadyPurchasedFirstClass: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasDetails = pkg.note || pkg.class_type || pkg.validity || pkg.classes_count
+  const isBlocked = pkg.is_first_class && alreadyPurchasedFirstClass
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-5">
-      {/* CAMBIO PRINCIPAL: flex-col en móviles, flex-row en tablets/desktop */}
+    <div className={`bg-white rounded-2xl shadow-sm border px-6 py-5 transition-opacity
+      ${isBlocked ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        
-        {/* Lado izquierdo: Título y botón de detalles */}
+
+        {/* Left: title + details toggle */}
         <div className="flex-1 min-w-0">
-          <p className="text-gray-900 text-base leading-tight">
-            <span className="font-bold">{pkg.title}</span>{' '}
-            <span className="text-gray-500 block sm:inline mt-0.5 sm:mt-0">{pkg.class_type}</span>
-          </p>
-          {hasDetails && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-gray-900 text-base leading-tight">
+              <span className="font-bold">{pkg.title}</span>{' '}
+              <span className="text-gray-500">{pkg.class_type}</span>
+            </p>
+            {pkg.is_first_class && (
+              <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                Solo 1 vez
+              </span>
+            )}
+          </div>
+
+          {isBlocked && (
+            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              Ya utilizaste este paquete
+            </p>
+          )}
+
+          {hasDetails && !isBlocked && (
             <button
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1 text-gray-500 text-xs mt-2 hover:text-gray-700 transition-colors"
@@ -51,32 +71,38 @@ function PackageCard({
           )}
         </div>
 
-        {/* Lado derecho: Precio y botón de compra */}
-        {/* En móviles, se separa del texto hacia abajo y manda el precio a la izquierda y el botón a la derecha */}
+        {/* Right: price + button */}
         <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-gray-100 sm:border-0">
           <p className="font-semibold text-gray-900 text-lg sm:text-base shrink-0">
             ${pkg.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </p>
 
-          <button
-            onClick={() => onSelect(pkg)}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
-          >
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Seleccionar
-          </button>
+          {isBlocked ? (
+            <button
+              disabled
+              className="border border-gray-200 text-gray-400 bg-gray-50 font-semibold px-5 py-2.5 rounded-xl text-sm cursor-not-allowed flex items-center gap-2"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              No disponible
+            </button>
+          ) : (
+            <button
+              onClick={() => onSelect(pkg)}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
+            >
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Seleccionar
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Detalles expandibles */}
-      {expanded && hasDetails && (
+      {/* Expanded details */}
+      {expanded && hasDetails && !isBlocked && (
         <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-1.5 text-sm text-gray-500">
           {pkg.classes_count && (
-            <p>
-              {pkg.classes_count}{' '}
-              {pkg.classes_count === 1 ? 'clase incluida' : 'clases incluidas'}
-            </p>
+            <p>{pkg.classes_count} {pkg.classes_count === 1 ? 'clase incluida' : 'clases incluidas'}</p>
           )}
           {pkg.validity && <p>Vigencia de {pkg.validity}</p>}
           {pkg.note && <p>{pkg.note}</p>}
@@ -90,11 +116,30 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [alreadyPurchasedFirstClass, setAlreadyPurchasedFirstClass] = useState(false)
+  const [checkingHistory, setCheckingHistory] = useState(true)
+
+  useEffect(() => {
+    async function checkFirstClassHistory() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setCheckingHistory(false); return }
+
+      // Check if user has ever bought any first-class package
+      const { data } = await supabase
+        .from('user_packages')
+        .select('id, packages(is_first_class)')
+        .eq('user_id', user.id)
+
+      const hasUsed = (data ?? []).some((up: any) => up.packages?.is_first_class === true)
+      setAlreadyPurchasedFirstClass(hasUsed)
+      setCheckingHistory(false)
+    }
+    checkFirstClassHistory()
+  }, [])
 
   async function handleSelect(pkg: Package) {
     setError(null)
 
-    // Check if logged in first
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       router.push('/login')
@@ -112,15 +157,9 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
 
       const data = await res.json()
 
-      if (data.error) {
-        throw new Error(data.error)
-      }
+      if (data.error) throw new Error(data.error)
+      if (!data.url) throw new Error('No se recibió URL de pago')
 
-      if (!data.url) {
-        throw new Error('No se recibió URL de pago')
-      }
-
-      // Redirect to Stripe
       window.location.href = data.url
 
     } catch (e: any) {
@@ -152,6 +191,7 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
                 pkg={pkg}
                 onSelect={handleSelect}
                 loading={loadingId === pkg.id}
+                alreadyPurchasedFirstClass={alreadyPurchasedFirstClass}
               />
             ))}
           </div>

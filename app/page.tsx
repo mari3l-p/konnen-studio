@@ -14,7 +14,7 @@ export default function Home() {
         {/* Contenedor de la Imagen de Fondo */}
         <div className="absolute inset-0 z-0">
           <Image
-            src="/heroImg.jpg"
+            src="/verde.jpeg"
             alt="Mujer practicando Pilates"
             fill
             priority
@@ -39,7 +39,7 @@ export default function Home() {
           
           {/* Subtítulo (Slogan) */}
           <p className="text-lg md:text-lg lg:text-xl font-medium mb-12 max-w-2xl text-balance">
-            Tu estudio fitness
+            SI PUEDES
           </p>
           
           {/* bg-brand-blue (si lo definiste en globals.css v4) o bg-[#0052cc] */}

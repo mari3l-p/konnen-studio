@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, addDays, isSameDay, startOfWeek, addWeeks, subWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Globe } from 'lucide-react'
@@ -17,13 +17,12 @@ type Props = {
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
-// Función mágica para forzar cualquier fecha a la zona horaria de México
-function toMexicoTime(dateInput: string | Date) {
-  const date = new Date(dateInput);
-  // Obtenemos la hora en texto como si estuviéramos físicamente en Mérida/CDMX
-  const mxString = date.toLocaleString("en-US", { timeZone: "America/Mexico_City" });
-  // Creamos un nuevo objeto de fecha con esa hora forzada
-  return new Date(mxString);
+// Check if a class has already passed in Mexico timezone
+function isMexicoPast(startsAt: string): boolean {
+  const now = new Date()
+  const mxNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
+  const mxSession = new Date(new Date(startsAt).toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
+  return mxSession < mxNow
 }
 
 export default function ScheduleClient({
@@ -32,20 +31,29 @@ export default function ScheduleClient({
   isLoggedIn = false,
 }: Props) {
   const router = useRouter()
+  
+  // 1. Add a state to track if the component has mounted on the client
+  const [isMounted, setIsMounted] = useState(false)
+
   const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(toMexicoTime(new Date()), { weekStartsOn: 1 })
+    startOfWeek(new Date(), { weekStartsOn: 1 })
   )
-  const [selectedDay, setSelectedDay] = useState(toMexicoTime(new Date()))
+  const [selectedDay, setSelectedDay] = useState(new Date())
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
   const bookedSet = new Set(bookedSessionIds)
 
   const daySessions = sessions.filter((s) =>
-    isSameDay(toMexicoTime(s.starts_at), selectedDay)
+    isSameDay(new Date(s.starts_at), selectedDay)
   )
 
   const monthLabel = format(weekStart, 'MMMM yyyy', { locale: es })
     .replace(/^\w/, (c) => c.toUpperCase())
+
+  // 2. Set isMounted to true once the component hydrates in the browser
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   function handleReserveClick(session: Session) {
     if (!isLoggedIn) {
@@ -55,6 +63,13 @@ export default function ScheduleClient({
     setSelectedSession(session)
   }
 
+  // 3. Prevent rendering the mismatched HTML on the server
+  // Returning null ensures the server and initial client render match perfectly.
+  if (!isMounted) {
+    return null; 
+    // Tip: You can replace `null` with a loading skeleton here to prevent layout shift!
+  }
+
   return (
     <section className="w-full bg-[#f4f7fa] min-h-screen">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-10">
@@ -62,7 +77,10 @@ export default function ScheduleClient({
         {/* Title row */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Horario</h1>
-          
+          <button className="flex items-center gap-2 border border-gray-300 bg-white rounded-xl px-3 md:px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Filtros</span>
+          </button>
         </div>
 
         {/* Timezone row */}
@@ -71,11 +89,13 @@ export default function ScheduleClient({
           <button className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors text-xs md:text-sm">
             <Globe className="w-3.5 h-3.5 text-gray-500" />
             <span>Mexico - Central Time</span>
+            <ChevronRight className="w-3 h-3 text-gray-400 rotate-90" />
           </button>
         </div>
 
         {/* Week navigation */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-3 md:mb-4">
+          {/* Month + nav */}
           <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-100">
             <button className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900">
               {monthLabel}
@@ -90,7 +110,7 @@ export default function ScheduleClient({
               </button>
               <button
                 onClick={() => {
-                  const today = toMexicoTime(new Date())
+                  const today = new Date()
                   setWeekStart(startOfWeek(today, { weekStartsOn: 1 }))
                   setSelectedDay(today)
                 }}
@@ -112,7 +132,7 @@ export default function ScheduleClient({
             {DAYS.map((offset) => {
               const day = addDays(weekStart, offset)
               const isSelected = isSameDay(day, selectedDay)
-              const isToday = isSameDay(day, toMexicoTime(new Date()))
+              const isToday = isSameDay(day, new Date())
               return (
                 <button
                   key={offset}
@@ -151,19 +171,19 @@ export default function ScheduleClient({
               const isFull = spotsLeft <= 0
               const isLow = spotsLeft > 0 && spotsLeft <= 3
               const isBooked = bookedSet.has(session.id)
+              const isPast = isMexicoPast(session.starts_at)
 
               return (
                 <div
                   key={session.id}
                   className={`flex items-center gap-3 md:gap-6 px-4 md:px-6 py-4 md:py-5 ${
                     i < daySessions.length - 1 ? 'border-b border-gray-100' : ''
-                  }`}
+                  } ${isPast && !isBooked ? 'opacity-60' : ''}`}
                 >
                   {/* Time */}
                   <div className="w-16 md:w-20 shrink-0">
                     <p className="font-bold text-gray-900 text-sm md:text-base">
-                      {/* AQUÍ ESTÁ LA CORRECCIÓN CLAVE PARA LA HORA */}
-                      {format(toMexicoTime(session.starts_at), 'hh:mm aa')}
+                      {format(new Date(session.starts_at), 'hh:mm aa')}
                     </p>
                     <p className="text-gray-400 text-xs mt-0.5">
                       {session.class_types.duration_mins} mins
@@ -199,7 +219,6 @@ export default function ScheduleClient({
                   {/* Right: status + button */}
                   <div className="flex flex-col items-end gap-1.5 md:gap-2 shrink-0">
                     {isBooked ? (
-                      // This user already booked this session
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-green-600 text-xs font-semibold">✓ Reservada</span>
                         <button
@@ -209,8 +228,14 @@ export default function ScheduleClient({
                           Ya reservada
                         </button>
                       </div>
+                    ) : isPast ? (
+                      <button
+                        disabled
+                        className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
+                      >
+                        Clase finalizada
+                      </button>
                     ) : isFull ? (
-                      // Session is full
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-red-500 text-xs font-semibold">Sin espacios</span>
                         <button
@@ -221,7 +246,6 @@ export default function ScheduleClient({
                         </button>
                       </div>
                     ) : (
-                      // Available to book
                       <div className="flex flex-col items-end gap-1">
                         {isLow && (
                           <span className="text-orange-500 text-xs font-semibold">
