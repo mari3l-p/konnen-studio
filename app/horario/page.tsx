@@ -1,28 +1,30 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import ScheduleClient from './ScheduleClient'
-import { startOfWeek, addWeeks } from 'date-fns'
+import { subDays, addDays } from 'date-fns'
 
 export default async function HorarioPage() {
   const supabase = await createSupabaseServerClient()
 
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
-  const rangeEnd = addWeeks(weekStart, 4)
+  // Calculamos un rango más amplio (30 días en el pasado y 60 en el futuro)
+  // Esto permite que el usuario pueda ver el historial de clases de la semana pasada
+  const pastDate = subDays(new Date(), 30).toISOString()
+  const futureDate = addDays(new Date(), 60).toISOString()
 
   // 1. Obtener usuario (null si no está logueado)
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 2. Obtener TODAS las sesiones (clases) en el rango de fechas
+  // 2. Obtener TODAS las sesiones (clases) en el nuevo rango de fechas
   const { data: sessionsRaw } = await supabase
     .from('sessions')
     .select('*, class_types(*), instructors(*)')
-    .gte('starts_at', weekStart.toISOString())
-    .lte('starts_at', rangeEnd.toISOString())
+    .gte('starts_at', pastDate) // Traemos desde hace un mes
+    .lte('starts_at', futureDate) // Traemos hasta dos meses a futuro
     .eq('is_cancelled', false)
     .order('starts_at')
 
   const sessionIds = (sessionsRaw ?? []).map(s => s.id)
 
-  // 3. NUEVO: Calcular los espacios contando las reservas reales
+  // 3. Calcular los espacios contando las reservas reales
   let bookingCounts: Record<string, number> = {}
 
   if (sessionIds.length > 0) {
@@ -38,7 +40,7 @@ export default async function HorarioPage() {
     })
   }
 
-  // 4. Ver qué clases ya reservó EL USUARIO ACTUAL (para el botón "Ya reservada")
+  // 4. Ver qué clases ya reservó EL USUARIO ACTUAL
   let bookedSessionIds: string[] = []
   if (user) {
     const { data: userBookings } = await supabase
@@ -50,7 +52,7 @@ export default async function HorarioPage() {
     bookedSessionIds = (userBookings ?? []).map((b: any) => b.session_id)
   }
 
-  // 5. Mapear las sesiones con los espacios sobrantes matemáticamente exactos
+  // 5. Mapear las sesiones con los espacios sobrantes
   const sessions = (sessionsRaw ?? []).map(s => {
     // Obtenemos cuántos han reservado (o 0 si nadie ha reservado)
     const bookedCount = bookingCounts[s.id] || 0

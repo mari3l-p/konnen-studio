@@ -17,12 +17,10 @@ type Props = {
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
-// Check if a class has already passed in Mexico timezone
-function isMexicoPast(startsAt: string): boolean {
-  const now = new Date()
-  const mxNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
-  const mxSession = new Date(new Date(startsAt).toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
-  return mxSession < mxNow
+// Función unificada que nos da el número exacto de horas que faltan para la clase.
+function getHoursUntilClass(startsAt: string): number {
+  const msUntilClass = new Date(startsAt).getTime() - Date.now()
+  return msUntilClass / (1000 * 60 * 60)
 }
 
 export default function ScheduleClient({
@@ -32,14 +30,14 @@ export default function ScheduleClient({
 }: Props) {
   const router = useRouter()
   
-  // 1. Add a state to track if the component has mounted on the client
   const [isMounted, setIsMounted] = useState(false)
-
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  
+  const [isLoadingAction, setIsLoadingAction] = useState(false)
 
   const bookedSet = new Set(bookedSessionIds)
 
@@ -50,7 +48,6 @@ export default function ScheduleClient({
   const monthLabel = format(weekStart, 'MMMM yyyy', { locale: es })
     .replace(/^\w/, (c) => c.toUpperCase())
 
-  // 2. Set isMounted to true once the component hydrates in the browser
   useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -63,18 +60,46 @@ export default function ScheduleClient({
     setSelectedSession(session)
   }
 
-  // 3. Prevent rendering the mismatched HTML on the server
-  // Returning null ensures the server and initial client render match perfectly.
+  async function handleCancelReservation(sessionId: string) {
+    const confirmacion = window.confirm('¿Estás seguro de que deseas cancelar esta reserva? Tu crédito será devuelto a tu paquete.')
+    if (!confirmacion) return
+
+    setIsLoadingAction(true)
+    try {
+      const res = await fetch('/api/bookings/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      })
+      
+      const contentType = res.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+         throw new Error("El servidor devolvió una respuesta no válida. Revisa la consola para más detalles.")
+      }
+
+      const data = await res.json()
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Hubo un error al cancelar la clase.')
+      }
+      
+      alert('Reserva cancelada con éxito. El crédito ha sido devuelto a tu paquete.')
+      router.refresh() 
+    } catch (error: any) {
+      alert(error.message)
+    } finally {
+      setIsLoadingAction(false)
+    }
+  }
+
   if (!isMounted) {
     return null; 
-    // Tip: You can replace `null` with a loading skeleton here to prevent layout shift!
   }
 
   return (
     <section className="w-full bg-[#f4f7fa] min-h-screen">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-10">
 
-        {/* Title row */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Horario</h1>
           <button className="flex items-center gap-2 border border-gray-300 bg-white rounded-xl px-3 md:px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
@@ -83,7 +108,6 @@ export default function ScheduleClient({
           </button>
         </div>
 
-        {/* Timezone row */}
         <div className="flex items-center gap-2 text-sm text-gray-600 mb-4 md:mb-6">
           <span className="font-medium hidden sm:inline">Zona horaria:</span>
           <button className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors text-xs md:text-sm">
@@ -93,41 +117,25 @@ export default function ScheduleClient({
           </button>
         </div>
 
-        {/* Week navigation */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-3 md:mb-4">
-          {/* Month + nav */}
           <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-100">
             <button className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-gray-900">
               {monthLabel}
               <ChevronRight className="w-4 h-4 rotate-90 text-gray-400" />
             </button>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <button
-                onClick={() => setWeekStart((w) => subWeeks(w, 1))}
-                className="p-1.5 md:p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+              <button onClick={() => setWeekStart((w) => subWeeks(w, 1))} className="p-1.5 md:p-2 rounded-lg hover:bg-gray-100 transition-colors">
                 <ChevronLeft className="w-4 h-4 text-gray-500" />
               </button>
-              <button
-                onClick={() => {
-                  const today = new Date()
-                  setWeekStart(startOfWeek(today, { weekStartsOn: 1 }))
-                  setSelectedDay(today)
-                }}
-                className="px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => { const today = new Date(); setWeekStart(startOfWeek(today, { weekStartsOn: 1 })); setSelectedDay(today); }} className="px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 Hoy
               </button>
-              <button
-                onClick={() => setWeekStart((w) => addWeeks(w, 1))}
-                className="p-1.5 md:p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+              <button onClick={() => setWeekStart((w) => addWeeks(w, 1))} className="p-1.5 md:p-2 rounded-lg hover:bg-gray-100 transition-colors">
                 <ChevronRight className="w-4 h-4 text-gray-500" />
               </button>
             </div>
           </div>
 
-          {/* Day selector */}
           <div className="grid grid-cols-7">
             {DAYS.map((offset) => {
               const day = addDays(weekStart, offset)
@@ -143,9 +151,7 @@ export default function ScheduleClient({
                   <span className="text-[10px] md:text-xs font-medium mb-1 capitalize">
                     {format(day, 'EEE', { locale: es }).replace('.', '')}
                   </span>
-                  <span className={`text-base md:text-lg font-bold leading-none ${
-                    isSelected ? 'text-white' : isToday ? 'text-blue-600' : ''
-                  }`}>
+                  <span className={`text-base md:text-lg font-bold leading-none ${isSelected ? 'text-white' : isToday ? 'text-blue-600' : ''}`}>
                     {format(day, 'd')}
                   </span>
                 </button>
@@ -154,12 +160,10 @@ export default function ScheduleClient({
           </div>
         </div>
 
-        {/* Date label */}
         <div className="bg-gray-200 rounded-xl px-3 md:px-4 py-2 mb-3 md:mb-4 text-xs md:text-sm text-gray-600 font-medium capitalize">
           {format(selectedDay, "EEEE d MMMM yyyy", { locale: es })}
         </div>
 
-        {/* Sessions */}
         <div className="flex flex-col gap-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {daySessions.length === 0 ? (
             <div className="py-12 md:py-16 text-center text-gray-400 text-sm">
@@ -171,7 +175,12 @@ export default function ScheduleClient({
               const isFull = spotsLeft <= 0
               const isLow = spotsLeft > 0 && spotsLeft <= 3
               const isBooked = bookedSet.has(session.id)
-              const isPast = isMexicoPast(session.starts_at)
+              
+              // Tiempos
+              const hoursUntil = getHoursUntilClass(session.starts_at)
+              const isPast = hoursUntil <= 0
+              const canBook = hoursUntil >= 2   
+              const canCancel = hoursUntil >= 8 
 
               return (
                 <div
@@ -180,7 +189,6 @@ export default function ScheduleClient({
                     i < daySessions.length - 1 ? 'border-b border-gray-100' : ''
                   } ${isPast && !isBooked ? 'opacity-60' : ''}`}
                 >
-                  {/* Time */}
                   <div className="w-16 md:w-20 shrink-0">
                     <p className="font-bold text-gray-900 text-sm md:text-base">
                       {format(new Date(session.starts_at), 'hh:mm aa')}
@@ -190,7 +198,6 @@ export default function ScheduleClient({
                     </p>
                   </div>
 
-                  {/* Image — hidden on mobile */}
                   <div className="hidden md:block w-36 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
                     {session.class_types.image_url ? (
                       <Image
@@ -198,14 +205,13 @@ export default function ScheduleClient({
                         alt={session.class_types.name}
                         width={144}
                         height={96}
-                        className="object-cover w-full h-full"
+                        className="object-cover object-top w-full h-full"
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-200" />
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm md:text-base mb-0.5 truncate">
                       {session.class_types.name}
@@ -216,32 +222,45 @@ export default function ScheduleClient({
                     <p className="text-gray-400 text-xs truncate">{session.location}</p>
                   </div>
 
-                  {/* Right: status + button */}
                   <div className="flex flex-col items-end gap-1.5 md:gap-2 shrink-0">
                     {isBooked ? (
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-green-600 text-xs font-semibold">✓ Reservada</span>
-                        <button
-                          disabled
-                          className="border border-green-200 text-green-600 bg-green-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
-                        >
-                          Ya reservada
-                        </button>
+                        {canCancel ? (
+                          <button
+                            onClick={() => handleCancelReservation(session.id)}
+                            disabled={isLoadingAction}
+                            className="border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium transition-colors"
+                          >
+                            Cancelar clase
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              disabled
+                              className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
+                            >
+                              Ya reservada
+                            </button>
+                            <span className="text-gray-400 text-[10px]">Fuera de tiempo para cancelar</span>
+                          </>
+                        )}
                       </div>
                     ) : isPast ? (
-                      <button
-                        disabled
-                        className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
-                      >
+                      <button disabled className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default">
                         Clase finalizada
                       </button>
+                    ) : !canBook ? (
+                      <div className="flex flex-col items-end gap-1">
+                         <span className="text-orange-500 text-xs font-semibold">Cerrada</span>
+                         <button disabled className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default">
+                           Reservas cerradas
+                         </button>
+                      </div>
                     ) : isFull ? (
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-red-500 text-xs font-semibold">Sin espacios</span>
-                        <button
-                          disabled
-                          className="border border-red-200 text-red-400 bg-red-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default"
-                        >
+                        <button disabled className="border border-red-200 text-red-400 bg-red-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default">
                           Clase llena
                         </button>
                       </div>
