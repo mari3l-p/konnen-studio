@@ -10,6 +10,7 @@ export type Instructor = {
   name: string
   bio: string | null
   image_url: string | null
+  email: string
 }
 
 export type Session = {
