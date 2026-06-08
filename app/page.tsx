@@ -3,6 +3,7 @@ import AboutSection from "./components/AboutSection";
 import FeaturesSection from "./components/DisciplinasSection";
 import ReseñasSection from "./components/ReseñasSection";
 import EnlacesSection from "./components/EnlacesSection";
+import ComoReservar from "./components/ComoReservar";
 
 export default function Home() {
   return (
@@ -55,6 +56,9 @@ export default function Home() {
       </section>
       <section>
         <FeaturesSection/>
+      </section>
+      <section>
+        <ComoReservar/>
       </section>
       <section>
         <ReseñasSection/>
