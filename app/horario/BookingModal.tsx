@@ -23,21 +23,26 @@ type Props = {
   onClose: () => void
 }
 
-// Check if a package's class_type is compatible with the session's discipline
-function isCompatible(packageClassType: string, sessionDiscipline: string | null): boolean {
-  if (!sessionDiscipline) return true // if no discipline set, allow all
-  if (packageClassType === 'Todas las disciplinas') return true
+// Validación estricta usando palabras clave en el nombre o disciplina
+function isCompatible(packageClassType: string, sessionDiscipline: string): boolean {
+  if (!packageClassType || !sessionDiscipline) return false
 
-  const pkg = packageClassType.toLowerCase()
-  const disc = sessionDiscipline.toLowerCase()
+  const pkg = packageClassType.toLowerCase().trim()
+  const cls = sessionDiscipline.toLowerCase().trim()
 
-  // Indoor Cycling
-  if (pkg.includes('indoor') && disc.includes('indoor')) return true
-  if (pkg.includes('cycling') && disc.includes('cycling')) return true
+  // Paquete universal
+  if (pkg.includes('todas las disciplinas') || pkg.includes('todas')) return true
 
-  // Sculpt / Tone
-  if ((pkg.includes('sculpt') || pkg.includes('tone')) &&
-      (disc.includes('sculpt') || disc.includes('tone'))) return true
+  // Lógica de paquetes
+  const isPkgIndoor = pkg.includes('indoor') || pkg.includes('cycling')
+  const isPkgSculpt = pkg.includes('sculpt') || pkg.includes('tone')
+
+  // Lógica de clases (detecta palabras clave incluso en nombres compuestos como "Mundial Ride")
+  const isClassIndoor = cls.includes('indoor') || cls.includes('cycling') || cls.includes('ride')
+  const isClassSculpt = cls.includes('sculpt') || cls.includes('tone') || cls.includes('define') || cls.includes('barre') || cls.includes('funcional') || cls.includes('deep')
+
+  if (isPkgIndoor && isClassIndoor) return true
+  if (isPkgSculpt && isClassSculpt) return true
 
   return false
 }
@@ -57,24 +62,25 @@ export default function BookingModal({ session, onClose }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoadingPackages(false); return }
 
-      // Fetch the discipline of this class type
+      // Buscamos la disciplina de este tipo de clase
       const { data: classType } = await supabase
         .from('class_types')
         .select('discipline')
         .eq('id', session.class_types.id ?? session.class_types.name)
         .single()
 
-      // Also try by name if id isn't available
       const { data: classTypeByName } = await supabase
         .from('class_types')
         .select('discipline')
         .eq('name', session.class_types.name)
         .single()
 
-      const disc = classType?.discipline ?? classTypeByName?.discipline ?? null
-      setSessionDiscipline(disc)
+      // Si la disciplina es null, usamos el nombre de la clase como respaldo
+      const dbDiscipline = classType?.discipline ?? classTypeByName?.discipline
+      const finalDisciplineToCheck = dbDiscipline || session.class_types.name || ''
+      setSessionDiscipline(finalDisciplineToCheck)
 
-      // Fetch active user packages
+      // Obtenemos los paquetes activos del usuario
       const { data } = await supabase
         .from('user_packages')
         .select('*, packages(title, class_type)')
@@ -87,9 +93,9 @@ export default function BookingModal({ session, onClose }: Props) {
       const pkgs = data ?? []
       setAllPackages(pkgs)
 
-      // Filter to only compatible packages
+      // Filtramos SOLAMENTE los paquetes compatibles
       const compatible = pkgs.filter(up =>
-        isCompatible(up.packages.class_type, disc)
+        isCompatible(up.packages.class_type, finalDisciplineToCheck)
       )
       setCompatiblePackages(compatible)
 
@@ -97,7 +103,7 @@ export default function BookingModal({ session, onClose }: Props) {
       setLoadingPackages(false)
     }
     fetchData()
-  }, [])
+  }, [session.class_types.id, session.class_types.name])
 
   async function handleReserve() {
     if (!selectedPackage) return
@@ -140,7 +146,7 @@ export default function BookingModal({ session, onClose }: Props) {
           {format(new Date(session.starts_at), "EEEE d MMMM · hh:mm aa", { locale: es })}
         </p>
 
-        {/* Session info */}
+        {/* Info de la Sesión */}
         <div className="bg-gray-50 rounded-xl p-4 mb-4 flex flex-col gap-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500">Instructor</span>
@@ -158,25 +164,16 @@ export default function BookingModal({ session, onClose }: Props) {
             <span className="text-gray-500">Espacios disponibles</span>
             <span className="font-medium">{session.session_availability?.spots_left ?? '—'}</span>
           </div>
-          {sessionDiscipline && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">Disciplina</span>
-              <span className="font-medium text-blue-600">{sessionDiscipline}</span>
-            </div>
-          )}
         </div>
 
         {loadingPackages ? (
           <div className="py-4 text-center text-gray-400 text-sm">Cargando paquetes...</div>
 
         ) : hasNoPackages ? (
-          // No packages at all
           <div className="flex flex-col gap-3">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
               <p className="font-semibold text-amber-800 mb-1">Necesitas un paquete activo</p>
-              <p className="text-amber-700">
-                Para reservar una clase necesitas adquirir un paquete primero.
-              </p>
+              <p className="text-amber-700">Para reservar una clase necesitas adquirir un paquete primero.</p>
             </div>
             <button
               onClick={() => { onClose(); router.push('/paquetes') }}
@@ -184,31 +181,24 @@ export default function BookingModal({ session, onClose }: Props) {
             >
               Ver paquetes disponibles
             </button>
-            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">
-              Cancelar
-            </button>
+            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">Cancelar</button>
           </div>
 
         ) : hasIncompatibleOnly ? (
-          // Has packages but none work for this class type
           <div className="flex flex-col gap-3">
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
               <div className="flex gap-2 items-start">
                 <AlertCircle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-orange-800 mb-1">
-                    Paquete incompatible
-                  </p>
+                  <p className="font-semibold text-orange-800 mb-1">Paquete incompatible</p>
                   <p className="text-orange-700">
                     Tus paquetes activos no incluyen clases de{' '}
-                    <strong>{sessionDiscipline ?? session.class_types.name}</strong>.
-                    Necesitas un paquete para esta disciplina.
+                    <strong>{session.class_types.name}</strong>. Necesitas un paquete para esta disciplina.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Show what they have */}
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 font-medium mb-2">Tus paquetes activos:</p>
               {allPackages.map(up => (
@@ -225,13 +215,10 @@ export default function BookingModal({ session, onClose }: Props) {
             >
               Comprar paquete para esta disciplina
             </button>
-            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">
-              Cancelar
-            </button>
+            <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">Cancelar</button>
           </div>
 
         ) : (
-          // Has compatible packages — show selector
           <div className="flex flex-col gap-3">
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <Package className="w-4 h-4 text-blue-600" />
@@ -271,9 +258,7 @@ export default function BookingModal({ session, onClose }: Props) {
               </div>
             )}
 
-            {error && (
-              <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>
-            )}
+            {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
 
             <button
               onClick={handleReserve}
@@ -284,7 +269,6 @@ export default function BookingModal({ session, onClose }: Props) {
             </button>
           </div>
         )}
-
       </div>
     </div>
   )

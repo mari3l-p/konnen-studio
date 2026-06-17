@@ -26,8 +26,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'upcoming', label: 'Próximo' },
   { key: 'attended', label: 'Asistido' },
   { key: 'cancelled', label: 'Cancelado' },
-  { key: 'absent', label: 'Ausente' },
-  { key: 'pending', label: 'Pendiente' },
 ]
 
 export default function ReservasClient({
