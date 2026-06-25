@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Loader2, Lock } from 'lucide-react'
+import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -19,12 +19,10 @@ type Package = {
 function PackageCard({
   pkg,
   onSelect,
-  loading,
   alreadyPurchasedFirstClass,
 }: {
   pkg: Package
   onSelect: (pkg: Package) => void
-  loading: boolean
   alreadyPurchasedFirstClass: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -88,11 +86,9 @@ function PackageCard({
           ) : (
             <button
               onClick={() => onSelect(pkg)}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0 flex items-center gap-2"
             >
-              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Seleccionar
+              Comprar
             </button>
           )}
         </div>
@@ -114,17 +110,19 @@ function PackageCard({
 
 export default function PaquetesClient({ packages }: { packages: Package[] }) {
   const router = useRouter()
-  const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [alreadyPurchasedFirstClass, setAlreadyPurchasedFirstClass] = useState(false)
   const [checkingHistory, setCheckingHistory] = useState(true)
+
+  // Estados para el Modal
+  const [modalAbierto, setModalAbierto] = useState(false)
+  const [paqueteSeleccionado, setPaqueteSeleccionado] = useState<Package | null>(null)
 
   useEffect(() => {
     async function checkFirstClassHistory() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setCheckingHistory(false); return }
 
-      // Check if user has ever bought any first-class package
       const { data } = await supabase
         .from('user_packages')
         .select('id, packages(is_first_class)')
@@ -146,26 +144,9 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
       return
     }
 
-    setLoadingId(pkg.id)
-
-    try {
-      const res = await fetch('/api/checkout/paquete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId: pkg.id }),
-      })
-
-      const data = await res.json()
-
-      if (data.error) throw new Error(data.error)
-      if (!data.url) throw new Error('No se recibió URL de pago')
-
-      window.location.href = data.url
-
-    } catch (e: any) {
-      setError(e.message)
-      setLoadingId(null)
-    }
+    // En lugar de llamar a Stripe, abrimos el modal
+    setPaqueteSeleccionado(pkg)
+    setModalAbierto(true)
   }
 
   return (
@@ -190,13 +171,80 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
                 key={pkg.id}
                 pkg={pkg}
                 onSelect={handleSelect}
-                loading={loadingId === pkg.id}
                 alreadyPurchasedFirstClass={alreadyPurchasedFirstClass}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* MODAL DE TRANSFERENCIA */}
+      {modalAbierto && paqueteSeleccionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl relative">
+            
+            <button 
+              onClick={() => setModalAbierto(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2 text-center">
+              ¡Tu reserva casi queda hecha!
+            </h3>
+            
+            <p className="text-gray-600 mb-6 text-center text-sm">
+              Estás comprando: <strong>{paqueteSeleccionado.title}</strong> por ${paqueteSeleccionado.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}.
+              <br/><br/>
+              Haz el pago a este número de cuenta para finalizar:
+            </p>
+
+            <div className="bg-gray-50 rounded-xl p-5 mb-6 text-gray-700 text-sm space-y-3 border border-gray-200">
+              <div className="flex justify-between border-b border-gray-200 pb-2">
+                <span className="font-semibold text-gray-500">Banco:</span>
+                <span className="font-medium">SANTANDER</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-200 pb-2">
+                <span className="font-semibold text-gray-500">Titular:</span>
+                <span className="font-medium">Consuelo Aguilar</span>
+              </div>
+              <div className="flex flex-col pt-1">
+                <span className="font-semibold text-gray-500 mb-1">No. De Tarjeta:</span>
+                <span className="font-mono text-base font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">5579 0990 1864 0724</span>
+              </div>
+              <div className="flex flex-col pt-1">
+                <span className="font-semibold text-gray-500 mb-1">Cuenta Clabe:</span>
+                <span className="font-mono text-base font-medium text-green-600 bg-blue-50 px-2 py-1 rounded w-fit">014130200125155444</span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-800 text-sm text-center">
+                Manda tu comprobante por WhatsApp y <strong>anota tu nombre y apellido</strong> en el concepto o referencia a la hora de hacer la transferencia.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <a 
+                href={`https://wa.me/529671486784?text=Hola,%20acabo%20de%20hacer%20el%20pago%20por%20el%20paquete%20${encodeURIComponent(paqueteSeleccionado.title)}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ backgroundColor: '#25D366' }}
+                className="w-full font-semibold py-3.5 text-white rounded-xl text-center shadow-sm flex justify-center items-center gap-2"
+>
+                Enviar comprobante a WhatsApp
+              </a>
+              <button 
+                onClick={() => setModalAbierto(false)}
+                className="w-full bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3.5 rounded-xl text-center transition-colors border border-gray-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
