@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import DashboardInstructoresClient from './DashboardInstructoresClient'
 import { subDays } from 'date-fns'
-import { redirect } from 'next/navigation' // <-- Importante para proteger la ruta
+import { redirect } from 'next/navigation' 
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -41,25 +41,20 @@ export default async function DashboardPage() {
   // ---------------------------------------------------------
   // 🛡️ BARRERA 2: AUTORIZACIÓN (¿Tiene permiso de ver esto?)
   // ---------------------------------------------------------
-  // Define aquí el/los correos que tienen permisos de Administrador total
   const ADMIN_EMAILS = ['studiokonnen@gmail.com'] 
   const isAdmin = ADMIN_EMAILS.includes(userEmail || '')
 
   let instructorProfile = null
 
-  // Si no es administrador, verificamos que sea un instructor oficial
   if (!isAdmin) {
-    // Busca en la tabla 'instructors' si existe este correo
-    // Nota: Asegúrate de que tu tabla 'instructors' tenga una columna 'email'
     const { data: instructor } = await supabase
       .from('instructors')
       .select('*')
       .eq('email', userEmail)
       .single()
 
-    // Si tiene cuenta en Supabase pero NO es administrador ni instructor (ej. un cliente)
     if (!instructor) {
-      await supabase.auth.signOut() // Destruimos su sesión por seguridad
+      await supabase.auth.signOut() 
       redirect('/instructores/login?error=no-autorizado')
     }
     
@@ -67,20 +62,22 @@ export default async function DashboardPage() {
   }
 
   // ---------------------------------------------------------
-  // CARGA DE DATOS (Solo llega aquí si pasó las barreras)
+  // CARGA DE DATOS 
   // ---------------------------------------------------------
   const { data: classTypes } = await supabase.from('class_types').select('*')
   const { data: instructors } = await supabase.from('instructors').select('*')
   
   const pastDate = subDays(new Date(), 30).toISOString()
   
-  const { data: initialClasses, error } = await supabase
+  // SOLUCIÓN: Usamos bookings(*) para traer todas las columnas de la reserva y evitar el error
+  const { data: rawClasses, error } = await supabase
     .from('sessions')
     .select(`
       *,
       class_types(name, duration_mins),
-      instructors(name)
-    `)
+      instructors(name),
+      bookings(*) 
+    `) 
     .gte('starts_at', pastDate)
     .order('starts_at', { ascending: true })
 
@@ -88,12 +85,34 @@ export default async function DashboardPage() {
     console.error("🚨 Error de Supabase al cargar clases:", error.message)
   }
 
+  // Formateamos y filtramos las reservas activas
+  const initialClasses = rawClasses?.map((session: any) => {
+    
+    // Filtramos las reservas para omitir las canceladas, buscando en las propiedades más comunes
+    const activeBookings = session.bookings?.filter((reserva: any) => {
+      // Atrapamos el valor sin importar si la columna se llama 'estado', 'status' o 'state' en la tabla de reservas
+      const estadoReserva = reserva.estado || reserva.status || reserva.state || '';
+      return estadoReserva.toLowerCase() !== 'cancelada' && estadoReserva.toLowerCase() !== 'cancelled';
+    }) || [];
+    
+    const bookedCount = activeBookings.length;
+    const capacity = session.capacity || 15;
+    
+    return {
+      ...session,
+      availability: {
+        booked_count: bookedCount,
+        spots_left: capacity - bookedCount
+      }
+    };
+  }) || [];
+
   return (
     <DashboardInstructoresClient 
       userEmail={userEmail}
       isAdmin={isAdmin} 
       instructorProfile={instructorProfile} 
-      initialClasses={initialClasses || []}
+      initialClasses={initialClasses}
       classTypes={classTypes || []}
       instructors={instructors || []}
     />
