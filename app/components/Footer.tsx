@@ -43,7 +43,7 @@ export default function Footer() {
           <div className="flex flex-col gap-3">
             <span className="text-2xl font-black uppercase tracking-tighter">Können Studio</span>
             <p className="text-white/50 text-sm leading-relaxed max-w-xs font-medium">
-              Tu espacio para moverte, crecer y sentirte bien. Clases de Sculpt deep, Indoor Cycling y Define & Tone.
+              Tu espacio para moverte, crecer y sentirte bien. Clases de Indoor Cycling, Pilates Flow y Pilates Mat.
             </p>
             <div className="flex gap-4 mt-2">
               {SOCIAL.map(({ icon, href, label }) => (

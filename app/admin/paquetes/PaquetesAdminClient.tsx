@@ -28,7 +28,7 @@ const VALIDITY_OPTIONS = [
 ]
 
 const CLASS_TYPE_OPTIONS = [
-  'Sculpt / Tone',
+  'Pilates',
   'Indoor Cycling',
   'Todas las disciplinas',
 ]

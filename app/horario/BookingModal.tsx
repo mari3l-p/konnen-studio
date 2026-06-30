@@ -62,7 +62,6 @@ export default function BookingModal({ session, onClose }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoadingPackages(false); return }
 
-      // Buscamos la disciplina de este tipo de clase
       const { data: classType } = await supabase
         .from('class_types')
         .select('discipline')
@@ -146,7 +145,6 @@ export default function BookingModal({ session, onClose }: Props) {
           {format(new Date(session.starts_at), "EEEE d MMMM · hh:mm aa", { locale: es })}
         </p>
 
-        {/* Info de la Sesión */}
         <div className="bg-gray-50 rounded-xl p-4 mb-4 flex flex-col gap-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500">Instructor</span>

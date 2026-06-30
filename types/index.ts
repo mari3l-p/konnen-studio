@@ -33,3 +33,13 @@ export type Booking = {
   stripe_payment_intent_id: string | null
   created_at: string
 }
+
+export interface Disciplina {
+  id: string;
+  title: string;
+  description: string;
+  extra?: string | null;
+  image_url: string;
+  object_position: string;
+  created_at?: string;
+}

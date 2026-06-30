@@ -29,18 +29,13 @@ export default async function DashboardPage() {
   // 1. Obtenemos la sesión actual
   const { data: { session } } = await supabase.auth.getSession()
   
-  // ---------------------------------------------------------
-  // 🛡️ BARRERA 1: AUTENTICACIÓN (¿Está logueado?)
-  // ---------------------------------------------------------
+
   if (!session?.user) {
     redirect('/instructores/login')
   }
 
   const userEmail = session.user.email
 
-  // ---------------------------------------------------------
-  // 🛡️ BARRERA 2: AUTORIZACIÓN (¿Tiene permiso de ver esto?)
-  // ---------------------------------------------------------
   const ADMIN_EMAILS = ['studiokonnen@gmail.com'] 
   const isAdmin = ADMIN_EMAILS.includes(userEmail || '')
 
@@ -61,9 +56,7 @@ export default async function DashboardPage() {
     instructorProfile = instructor
   }
 
-  // ---------------------------------------------------------
-  // CARGA DE DATOS 
-  // ---------------------------------------------------------
+
   const { data: classTypes } = await supabase.from('class_types').select('*')
   const { data: instructors } = await supabase.from('instructors').select('*')
   
@@ -82,7 +75,7 @@ export default async function DashboardPage() {
     .order('starts_at', { ascending: true })
 
   if (error) {
-    console.error("🚨 Error de Supabase al cargar clases:", error.message)
+    console.error("Error de Supabase al cargar clases:", error.message)
   }
 
   // Formateamos y filtramos las reservas activas
