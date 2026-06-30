@@ -7,23 +7,19 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Misma lógica estricta del frontend para el backend
+// Lógica de compatibilidad dinámica
 function disciplinesMatch(packageClassType: string, sessionDiscipline: string): boolean {
   if (!packageClassType || !sessionDiscipline) return false
 
   const pkg = packageClassType.toLowerCase().trim()
   const cls = sessionDiscipline.toLowerCase().trim()
 
+  // 1. Validar el comodín: si el paquete es para todas las disciplinas
   if (pkg.includes('todas las disciplinas') || pkg.includes('todas')) return true
 
-  const isPkgIndoor = pkg.includes('indoor') || pkg.includes('cycling')
-  const isPkgSculpt = pkg.includes('sculpt') || pkg.includes('tone')
-
-  const isClassIndoor = cls.includes('indoor') || cls.includes('cycling') || cls.includes('ride')
-  const isClassSculpt = cls.includes('sculpt') || cls.includes('tone') || cls.includes('define') || cls.includes('barre') || cls.includes('funcional') || cls.includes('deep')
-
-  if (isPkgIndoor && isClassIndoor) return true
-  if (isPkgSculpt && isClassSculpt) return true
+  // 2. Comparación dinámica: si el nombre es exactamente igual 
+  // o si uno contiene parte del nombre del otro (ej: "Indoor Cycling" vs "Indoor")
+  if (pkg === cls || pkg.includes(cls) || cls.includes(pkg)) return true
 
   return false
 }

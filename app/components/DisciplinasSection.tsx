@@ -1,13 +1,14 @@
 import Image from "next/image";
-import { supabase } from "@/lib/supabase"; // Asegúrate de que esta ruta sea la correcta
+import { supabase } from "@/lib/supabase";
 
 export default async function DisciplinasSection() {
-  // Obtenemos los datos directamente de Supabase ordenados por fecha de creación
+  // Obtenemos los datos directamente de Supabase
   const { data: disciplinas } = await supabase
     .from('disciplinas')
     .select('*')
     .order('created_at', { ascending: true });
 
+  // Si no hay datos, usamos un arreglo vacío por seguridad
   const services = disciplinas || [];
 
   return (
@@ -18,7 +19,9 @@ export default async function DisciplinasSection() {
         </h2>
 
         {services.length === 0 ? (
-          <p className="text-center text-gray-500">No hay disciplinas disponibles en este momento.</p>
+          <p className="text-center text-gray-500">
+            No hay disciplinas disponibles en este momento.
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {services.map((service) => (
@@ -33,11 +36,11 @@ export default async function DisciplinasSection() {
                   alt={service.title}
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  style={{ objectPosition: service.object_position }}
+                  style={{ objectPosition: service.object_position || "center center" }}
                 />
 
                 {/* Gradient overlay — stronger at bottom */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/30 to-transparent" />
 
                 {/* Text content pinned to bottom */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">

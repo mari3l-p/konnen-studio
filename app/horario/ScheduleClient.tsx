@@ -182,21 +182,8 @@ export default function ScheduleClient({
               const canBook = hoursUntil >= 2   
               const canCancel = hoursUntil >= 8 
 
-              // --- NUEVA LÓGICA DE IMÁGENES ---
-              const classNameLower = session.class_types.name.toLowerCase();
-              let displayImage = session.class_types.image_url;
-
-              // Forzar imagen local si el nombre incluye palabras clave
-              if (classNameLower.includes('indoor')) {
-                displayImage = '/Indoor.jpeg';
-              } else if (!displayImage) { // Fallbacks por si no hay URL en la base de datos
-                if (classNameLower.includes('sculpt')) {
-                  displayImage = '/sculpt.jpeg';
-                } else if (classNameLower.includes('define') || classNameLower.includes('tone')) {
-                  displayImage = '/define.jpeg';
-                }
-              }
-              // --------------------------------
+              // Imagen directa desde la base de datos
+              const displayImage = session.class_types.image_url;
 
               return (
                 <div
@@ -214,14 +201,15 @@ export default function ScheduleClient({
                     </p>
                   </div>
 
-                  <div className="hidden md:block w-36 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
+                  {/* Contenedor cuadrado ajustado w-24 h-24 y object-top */}
+                  <div className="hidden md:block w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
                     {displayImage ? (
                       <Image
                         src={displayImage}
                         alt={session.class_types.name}
-                        width={144}
+                        width={96}
                         height={96}
-                        className="object-cover object-center w-full h-full"
+                        className="object-cover object-top w-full h-full"
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-200" />

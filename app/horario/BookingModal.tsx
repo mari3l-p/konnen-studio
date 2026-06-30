@@ -23,7 +23,7 @@ type Props = {
   onClose: () => void
 }
 
-// Validación estricta usando palabras clave en el nombre o disciplina
+// Validación dinámica sincronizada con el backend
 function isCompatible(packageClassType: string, sessionDiscipline: string): boolean {
   if (!packageClassType || !sessionDiscipline) return false
 
@@ -33,16 +33,8 @@ function isCompatible(packageClassType: string, sessionDiscipline: string): bool
   // Paquete universal
   if (pkg.includes('todas las disciplinas') || pkg.includes('todas')) return true
 
-  // Lógica de paquetes
-  const isPkgIndoor = pkg.includes('indoor') || pkg.includes('cycling')
-  const isPkgSculpt = pkg.includes('sculpt') || pkg.includes('tone')
-
-  // Lógica de clases (detecta palabras clave incluso en nombres compuestos como "Mundial Ride")
-  const isClassIndoor = cls.includes('indoor') || cls.includes('cycling') || cls.includes('ride')
-  const isClassSculpt = cls.includes('sculpt') || cls.includes('tone') || cls.includes('define') || cls.includes('barre') || cls.includes('funcional') || cls.includes('deep')
-
-  if (isPkgIndoor && isClassIndoor) return true
-  if (isPkgSculpt && isClassSculpt) return true
+  // Comparación dinámica: si el nombre es igual o uno contiene al otro
+  if (pkg === cls || pkg.includes(cls) || cls.includes(pkg)) return true
 
   return false
 }
