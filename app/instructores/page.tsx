@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import DashboardInstructoresClient from './DashboardInstructoresClient'
 import { subDays } from 'date-fns'
 import { redirect } from 'next/navigation' 
@@ -7,6 +8,7 @@ import { redirect } from 'next/navigation'
 export default async function DashboardPage() {
   const cookieStore = await cookies()
   
+  // Cliente con la sesión del usuario actual (respeta RLS)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -26,16 +28,14 @@ export default async function DashboardPage() {
     }
   )
   
-  // 1. Obtenemos la sesión actual
+  // 1. Validar la sesión del usuario
   const { data: { session } } = await supabase.auth.getSession()
   
-
   if (!session?.user) {
     redirect('/instructores/login')
   }
 
   const userEmail = session.user.email
-
   const ADMIN_EMAILS = ['studiokonnen@gmail.com'] 
   const isAdmin = ADMIN_EMAILS.includes(userEmail || '')
 
@@ -56,20 +56,26 @@ export default async function DashboardPage() {
     instructorProfile = instructor
   }
 
-
+  // Consultas de catálogos generales
   const { data: classTypes } = await supabase.from('class_types').select('*')
   const { data: instructors } = await supabase.from('instructors').select('*')
   
   const pastDate = subDays(new Date(), 30).toISOString()
   
-  // SOLUCIÓN: Usamos bookings(*) para traer todas las columnas de la reserva y evitar el error
-  const { data: rawClasses, error } = await supabase
+  // 2. Cliente de Administración para omitir RLS de forma segura en el servidor
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // Consulta final: Traemos todo conectado a profiles y específicamente su full_name
+  const { data: rawClasses, error } = await supabaseAdmin
     .from('sessions')
     .select(`
       *,
       class_types(name, duration_mins),
       instructors(name),
-      bookings(*) 
+      bookings(*, profiles(full_name)) 
     `) 
     .gte('starts_at', pastDate)
     .order('starts_at', { ascending: true })
@@ -78,21 +84,29 @@ export default async function DashboardPage() {
     console.error("Error de Supabase al cargar clases:", error.message)
   }
 
-  // Formateamos y filtramos las reservas activas
+  // Formateamos los datos calculando la disponibilidad y mapeando los asistentes
   const initialClasses = rawClasses?.map((session: any) => {
     
-    // Filtramos las reservas para omitir las canceladas, buscando en las propiedades más comunes
     const activeBookings = session.bookings?.filter((reserva: any) => {
-      // Atrapamos el valor sin importar si la columna se llama 'estado', 'status' o 'state' en la tabla de reservas
-      const estadoReserva = reserva.estado || reserva.status || reserva.state || '';
-      return estadoReserva.toLowerCase() !== 'cancelada' && estadoReserva.toLowerCase() !== 'cancelled';
+      const estadoReserva = reserva.status || '';
+      return estadoReserva.toLowerCase() !== 'cancelled' && estadoReserva.toLowerCase() !== 'cancelada';
     }) || [];
+    
+    // Extraemos únicamente el full_name de la tabla profiles
+    const attendees = activeBookings.map((reserva: any) => {
+      const perfil = reserva.profiles || {};
+      return perfil.full_name || 'Usuario sin nombre';
+    });
     
     const bookedCount = activeBookings.length;
     const capacity = session.capacity || 15;
     
+    // Omitimos la propiedad cruda 'bookings' para no mandar metadatos innecesarios al cliente
+    const { bookings, ...sessionWithoutBookings } = session;
+
     return {
-      ...session,
+      ...sessionWithoutBookings,
+      attendees, 
       availability: {
         booked_count: bookedCount,
         spots_left: capacity - bookedCount

@@ -68,7 +68,7 @@ export default function DashboardInstructoresClient({
     
     if (!error && data) {
       setClasses((prev: any) =>
-        [...prev, { ...data[0], availability: null }]
+        [...prev, { ...data[0], availability: null, attendees: [] }]
           .sort((a: any, b: any) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
       )
       setShowForm(false)
@@ -90,7 +90,6 @@ export default function DashboardInstructoresClient({
 
   const monthLabel = format(selectedDay, 'MMMM yyyy', { locale: es }).replace(/^\w/, c => c.toUpperCase())
 
-  // Day-view list: classes for selected day sorted by time
   const dayViewClasses = classes
     ?.filter((c: any) => isSameDay(new Date(c.starts_at), selectedDay))
     ?.sort((a: any, b: any) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
@@ -183,7 +182,7 @@ export default function DashboardInstructoresClient({
         {/* Calendar container */}
         <div style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 16, overflow: 'hidden' }}>
 
-          {/* Top bar: month + nav */}
+          {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #1a1a1a', background: '#111', flexWrap: 'wrap', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>{monthLabel}</span>
@@ -203,19 +202,13 @@ export default function DashboardInstructoresClient({
 
           {/* Day nav */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid #1a1a1a' }}>
-            <button
-              onClick={() => setSelectedDay(d => addDays(d, -1))}
-              style={navBtn}
-            >
+            <button onClick={() => setSelectedDay(d => addDays(d, -1))} style={navBtn}>
               <ChevronLeft size={15} />
             </button>
             <span style={{ fontSize: 14, fontWeight: 600, color: '#fff', flex: 1, textAlign: 'center', textTransform: 'capitalize' }}>
               {format(selectedDay, "EEEE d 'de' MMMM yyyy", { locale: es })}
             </span>
-            <button
-              onClick={() => setSelectedDay(d => addDays(d, 1))}
-              style={navBtn}
-            >
+            <button onClick={() => setSelectedDay(d => addDays(d, 1))} style={navBtn}>
               <ChevronRight size={15} />
             </button>
           </div>
@@ -355,6 +348,7 @@ export default function DashboardInstructoresClient({
                         <span style={{ fontSize: 13, fontWeight: 600, color: isPast ? '#888' : '#ccc' }}>{value}</span>
                       </div>
                     ))}
+                    
                     <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: '#555' }}>Reservas</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -364,6 +358,7 @@ export default function DashboardInstructoresClient({
                         <span style={{ fontSize: 13, fontWeight: 700, color: isPast ? '#888' : '#fff' }}>{booked}/{selectedClass.capacity}</span>
                       </div>
                     </div>
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       {isPast ? (
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: '0.05em' }}>
@@ -375,6 +370,21 @@ export default function DashboardInstructoresClient({
                         </span>
                       )}
                     </div>
+
+                    {/* Lista de Asistentes */}
+                    {selectedClass.attendees && selectedClass.attendees.length > 0 && (
+                      <div style={{ borderTop: '1px solid #1a1a1a', marginTop: 10, paddingTop: 14 }}>
+                        <span style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 8 }}>Nombre de la Reserva.</span>
+                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {selectedClass.attendees.map((name: string, index: number) => (
+                            <li key={index} style={{ fontSize: 13, color: '#ccc', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 4, height: 4, borderRadius: '50%', background: color.border }} />
+                              {name}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                   {(isAdmin || selectedClass.instructors?.name === instructorProfile?.name) && !isPast && (
@@ -395,7 +405,6 @@ export default function DashboardInstructoresClient({
   )
 }
 
-// Shared styles
 const selectStyle: React.CSSProperties = {
   background: '#000',
   border: '1px solid #222',

@@ -25,14 +25,14 @@ export default function SolicitarRecuperacion() {
     } else {
       setSuccess(true)
     }
-    
+
     setLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-[#f4f7fa] flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full max-w-sm p-8">
-        
+
         {/* Logo y Encabezado */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center mb-3">
