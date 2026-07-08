@@ -3,7 +3,8 @@
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Check, Camera, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { Check, Camera, Loader2, Lock } from 'lucide-react'
 import ProfileLayout from './ProfileLayout'
 
 type Profile = {
@@ -188,6 +189,21 @@ export default function PerfilClient({ profile }: { profile: Profile | null }) {
               className="md:col-span-2 border border-gray-200 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all bg-gray-50/50"
             />
           </div>
+
+          {/* NUEVA SECCIÓN DE SEGURIDAD */}
+          <div className="pt-6 mt-6 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 items-center gap-2">
+            <label className="text-sm font-bold text-gray-700">Seguridad</label>
+            <div className="md:col-span-2 flex items-center">
+              <Link 
+                href="/actualizar-contrasena"
+                className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-blue-50 px-4 py-2.5 rounded-xl hover:bg-blue-100"
+              >
+                <Lock className="w-4 h-4" />
+                Cambiar contraseña
+              </Link>
+            </div>
+          </div>
+
         </div>
 
         {error && (
