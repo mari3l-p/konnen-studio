@@ -2,41 +2,31 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
-export default function ActualizarContrasena() {
-  const router = useRouter()
-  const [password, setPassword] = useState('')
+export default function RecuperarContrasena() {
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<boolean>(false)
+  const [success, setSuccess] = useState(false)
 
-  async function handleUpdatePassword(e: React.FormEvent) {
+  async function handleResetRequest(e: React.FormEvent) {
     e.preventDefault()
-    
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
-    // Supabase toma la sesión que venía escondida en el link del correo
-    const { error } = await supabase.auth.updateUser({
-      password: password
+    // Mandamos el correo y le decimos a Supabase que el link debe llevar al PASO 2
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/actualizar-contrasena`,
     })
 
     if (error) {
       setError(error.message)
-      setLoading(false)
     } else {
       setSuccess(true)
-      setTimeout(() => {
-        router.push('/dashboard') 
-        router.refresh()
-      }, 2000)
     }
+
+    setLoading(false)
   }
 
   return (
@@ -48,24 +38,22 @@ export default function ActualizarContrasena() {
             <span className="text-black font-extrabold text-sm">Kn</span>
           </div>
           <h1 className="text-gray-900 text-xl font-bold">Können</h1>
-          <p className="text-gray-400 text-sm mt-1">Crea tu nueva contraseña</p>
+          <p className="text-gray-400 text-sm mt-1">Recupera tu cuenta</p>
         </div>
 
         {success ? (
-          <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-xl text-center text-sm font-medium">
-            ¡Contraseña actualizada con éxito!<br/>
-            <span className="font-normal text-green-600 mt-1 block">Redirigiendo...</span>
+          <div className="bg-blue-50 border border-blue-100 text-blue-700 p-4 rounded-xl text-center text-sm">
+            Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.
           </div>
         ) : (
-          <form onSubmit={handleUpdatePassword} className="flex flex-col gap-5">
-            
+          <form onSubmit={handleResetRequest} className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-500 font-medium">Nueva contraseña</label>
+              <label className="text-xs text-gray-500 font-medium">Correo electrónico</label>
               <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@correo.com"
                 required
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
               />
@@ -78,11 +66,16 @@ export default function ActualizarContrasena() {
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors mt-2"
             >
-              {loading ? 'Actualizando...' : 'Guardar contraseña'}
+              {loading ? 'Enviando enlace...' : 'Enviar enlace de recuperación'}
             </button>
+
+            <div className="text-center mt-2">
+              <Link href="/login" className="text-sm text-blue-600 hover:underline">
+                Volver al inicio de sesión
+              </Link>
+            </div>
           </form>
         )}
-
       </div>
     </div>
   )
