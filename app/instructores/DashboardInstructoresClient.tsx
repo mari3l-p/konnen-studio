@@ -32,6 +32,11 @@ export default function DashboardInstructoresClient({
   const [showForm, setShowForm] = useState(false)
   const [selectedClass, setSelectedClass] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [addingLoading, setAddingLoading] = useState(false)
+
   const [form, setForm] = useState({
     class_type_id: '',
     instructor_id: isAdmin ? '' : (instructorProfile?.id || ''),
@@ -83,7 +88,96 @@ export default function DashboardInstructoresClient({
   async function handleCancelSession(id: string) {
     await supabase.from('sessions').update({ is_cancelled: true }).eq('id', id)
     setClasses((prev: any) => prev.filter((c: any) => c.id !== id))
+    closeModal()
+  }
+
+  async function handleAddCustomer() {
+    if (!newCustomerName.trim()) return
+    setAddingLoading(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          session_id: selectedClass.id,
+          guest_name: newCustomerName,
+          status: 'confirmed'
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+
+      const updatedClasses = classes.map((c: any) => {
+        if (c.id === selectedClass.id) {
+          const currentBooked = c.availability?.booked_count ?? 0
+          const currentCapacity = c.capacity || 15
+          
+          return {
+            ...c,
+            attendees: [...(c.attendees || []), { id: data.id, name: newCustomerName }],
+            availability: {
+              ...c.availability,
+              booked_count: currentBooked + 1,
+              spots_left: currentCapacity - (currentBooked + 1)
+            }
+          }
+        }
+        return c
+      })
+
+      setClasses(updatedClasses)
+      setSelectedClass(updatedClasses.find((c: any) => c.id === selectedClass.id))
+      
+      setNewCustomerName('')
+      setIsAddingCustomer(false)
+    } catch (error: any) {
+      alert('Error al agregar el cliente manualmente: ' + error.message)
+    } finally {
+      setAddingLoading(false)
+    }
+  }
+
+  async function handleRemoveCustomer(bookingId: string) {
+    if (!confirm('¿Estás seguro de que deseas cancelar esta reserva?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId)
+
+      if (error) throw error
+
+      const updatedClasses = classes.map((c: any) => {
+        if (c.id === selectedClass.id) {
+          const currentBooked = c.availability?.booked_count ?? 0
+          const currentCapacity = c.capacity || 15
+          
+          return {
+            ...c,
+            attendees: c.attendees.filter((attendee: any) => attendee.id !== bookingId),
+            availability: {
+              ...c.availability,
+              booked_count: Math.max(0, currentBooked - 1),
+              spots_left: currentCapacity - Math.max(0, currentBooked - 1)
+            }
+          }
+        }
+        return c
+      })
+
+      setClasses(updatedClasses)
+      setSelectedClass(updatedClasses.find((c: any) => c.id === selectedClass.id))
+    } catch (error: any) {
+      alert('Error al eliminar la reserva: ' + error.message)
+    }
+  }
+
+  const closeModal = () => {
     setSelectedClass(null)
+    setIsAddingCustomer(false)
+    setNewCustomerName('')
   }
 
   if (!isMounted) return <div style={{ minHeight: '100vh', background: '#000' }} />
@@ -301,7 +395,7 @@ export default function DashboardInstructoresClient({
       {selectedClass && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-          onClick={() => setSelectedClass(null)}
+          onClick={closeModal}
         >
           <div
             style={{ background: '#111', border: '1px solid #222', borderRadius: 20, width: '100%', maxWidth: 380, padding: 24, boxShadow: '0 0 0 1px #333' }}
@@ -311,8 +405,8 @@ export default function DashboardInstructoresClient({
               const isPast = new Date(selectedClass.starts_at).getTime() < now.getTime()
               const baseColor = colorMap[selectedClass.class_type_id] ?? CLASS_COLORS[0]
               const color = isPast 
-                  ? { border: '#333', bg: '#0a0a0a', text: '#666', badge: '#1a1a1a' }
-                  : baseColor
+                ? { border: '#333', bg: '#0a0a0a', text: '#666', badge: '#1a1a1a' }
+                : baseColor
 
               const booked = selectedClass.availability?.booked_count ?? 0
               const spots = selectedClass.availability?.spots_left ?? selectedClass.capacity
@@ -330,7 +424,7 @@ export default function DashboardInstructoresClient({
                         {format(new Date(selectedClass.starts_at), "EEEE d MMM · h:mm a", { locale: es })}
                       </p>
                     </div>
-                    <button onClick={() => setSelectedClass(null)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: 4 }}>
+                    <button onClick={closeModal} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: 4 }}>
                       <X size={18} />
                     </button>
                   </div>
@@ -371,18 +465,73 @@ export default function DashboardInstructoresClient({
                       )}
                     </div>
 
-                    {/* Lista de Asistentes */}
-                    {selectedClass.attendees && selectedClass.attendees.length > 0 && (
+                    {(selectedClass.attendees?.length > 0 || isAdmin) && (
                       <div style={{ borderTop: '1px solid #1a1a1a', marginTop: 10, paddingTop: 14 }}>
-                        <span style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 8 }}>Nombre de la Reserva.</span>
-                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {selectedClass.attendees.map((name: string, index: number) => (
-                            <li key={index} style={{ fontSize: 13, color: '#ccc', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ width: 4, height: 4, borderRadius: '50%', background: color.border }} />
-                              {name}
-                            </li>
-                          ))}
-                        </ul>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, color: '#555', display: 'block' }}>Nombre de la Reserva.</span>
+                          
+                          {isAdmin && !isPast && spots > 0 && !isAddingCustomer && (
+                            <button
+                              onClick={() => setIsAddingCustomer(true)}
+                              style={{ background: 'transparent', border: '1px solid #333', color: '#ccc', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', transition: 'all 0.2s' }}
+                            >
+                              + Agregar
+                            </button>
+                          )}
+                        </div>
+
+                        {selectedClass.attendees?.length > 0 && (
+                          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: isAddingCustomer ? 12 : 0 }}>
+                            {selectedClass.attendees.map((attendee: any, index: number) => (
+                              <li key={attendee.id || index} style={{ fontSize: 13, color: '#ccc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: color.border }} />
+                                  {attendee.name}
+                                </div>
+                                
+                                {/* Botón X solo para el Admin */}
+                                {isAdmin && !isPast && (
+                                  <button 
+                                    onClick={() => handleRemoveCustomer(attendee.id)} 
+                                    style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    title="Cancelar reserva"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {isAdmin && isAddingCustomer && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: selectedClass.attendees?.length > 0 ? 10 : 0 }}>
+                            <input
+                              type="text"
+                              placeholder="Nombre del cliente..."
+                              value={newCustomerName}
+                              onChange={(e) => setNewCustomerName(e.target.value)}
+                              style={{ flex: 1, background: '#000', border: '1px solid #333', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#fff', outline: 'none' }}
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddCustomer()
+                              }}
+                            />
+                            <button
+                              onClick={handleAddCustomer}
+                              disabled={addingLoading || !newCustomerName.trim()}
+                              style={{ background: '#fff', color: '#000', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (addingLoading || !newCustomerName.trim()) ? 0.5 : 1 }}
+                            >
+                              {addingLoading ? '...' : 'Guardar'}
+                            </button>
+                            <button
+                              onClick={() => { setIsAddingCustomer(false); setNewCustomerName(''); }}
+                              style={{ background: 'transparent', color: '#666', border: 'none', fontSize: 12, cursor: 'pointer' }}
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
