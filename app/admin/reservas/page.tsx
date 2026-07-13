@@ -12,7 +12,7 @@ function toMexicoTime(dateInput: string | Date) {
 export default async function ReservasPage() {
   const supabase = await createSupabaseServerClient()
 
-  // 1. Consultar reservas SIN el join de perfiles
+  // 1. Consultar reservas SIN el join de perfiles (Asegúrate de pedir guest_name)
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select(`
@@ -83,11 +83,12 @@ export default async function ReservasPage() {
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="text-white font-medium">
-                      {/* 👇 Usamos el mapa para buscar el nombre */}
-                      {profileMap[b.user_id] || 'Usuario sin nombre'}
+                      {/* Si tiene user_id busca en el mapa, si no, usa guest_name */}
+                      {b.user_id ? profileMap[b.user_id] : b.guest_name || 'Reserva manual'}
                     </span>
                     <span className="text-gray-500 text-[11px] font-mono mt-0.5 truncate max-w-32">
-                      ID: {b.user_id.split('-')[0]}...
+                      {/* Validamos si existe user_id antes de hacer split */}
+                      {b.user_id ? `ID: ${b.user_id.split('-')[0]}...` : 'ID: Manual'}
                     </span>
                   </div>
                 </td>
