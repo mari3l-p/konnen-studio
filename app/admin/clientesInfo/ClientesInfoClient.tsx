@@ -125,7 +125,13 @@ export default function ClientesInfoClient({ initialProfiles }: { initialProfile
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button onClick={() => setViewingProfile(profile)} className="p-2 text-gray-400 hover:text-white"><Eye size={16} /></button>
-                    <button onClick={() => handleEditClick(activePackage, profile.full_name)} className="p-2 text-gray-400 hover:text-white"><Edit2 size={16} /></button>
+                    <button
+                      onClick={() => activePackage && handleEditClick(activePackage, profile.full_name)}
+                      disabled={!activePackage}
+                      className="p-2 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Edit2 size={16} />
+                    </button>
                   </td>
                 </tr>
               )
@@ -169,6 +175,70 @@ export default function ClientesInfoClient({ initialProfiles }: { initialProfile
                   )
                 })}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Paquete (créditos + vencimiento) */}
+      {editingPackage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-black border border-gray-800 rounded-2xl w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-white">Editar paquete de {editingPackage.profileName}</h3>
+              <button onClick={() => setEditingPackage(null)}>
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-medium">
+                  Créditos restantes
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.classes_remaining}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      classes_remaining: Math.max(0, parseInt(e.target.value) || 0),
+                    }))
+                  }
+                  className="w-full bg-gray-900 border border-gray-800 text-white text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-medium">
+                  Fecha de vencimiento
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editForm.expires_at}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, expires_at: e.target.value }))
+                  }
+                  className="w-full bg-gray-900 border border-gray-800 text-white text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setEditingPackage(null)}
+                  className="flex-1 py-2.5 rounded-lg border border-gray-800 text-gray-400 text-sm font-medium hover:bg-gray-900 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
