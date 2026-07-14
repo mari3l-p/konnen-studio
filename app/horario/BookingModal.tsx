@@ -97,29 +97,35 @@ export default function BookingModal({ session, onClose }: Props) {
   }, [session.class_types.id, session.class_types.name])
 
   async function handleReserve() {
-    if (!selectedPackage) return
-    setLoading(true)
-    setError(null)
+  if (!selectedPackage) return
+  setLoading(true)
+  setError(null) // Resetea errores previos
 
-    try {
-      const res = await fetch('/api/bookings/with-package', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.id,
-          userPackageId: selectedPackage,
-        }),
-      })
-      const { error: apiError } = await res.json()
-      if (apiError) throw new Error(apiError)
-      onClose()
-      window.location.reload()
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+  try {
+    const res = await fetch('/api/bookings/with-package', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: session.id,
+        userPackageId: selectedPackage,
+      }),
+    })
+    
+    const result = await res.json()
+    
+    if (!res.ok) {
+      // Lanzamos el error que viene del SQL para mostrarlo en el estado 'error'
+      throw new Error(result.error || 'Error al procesar la reserva')
     }
+    
+    onClose()
+    window.location.reload()
+  } catch (e: any) {
+    setError(e.message) // Ahora el usuario verá el mensaje real (ej: "Clase llena")
+  } finally {
+    setLoading(false)
   }
+}
 
   const hasNoPackages = !loadingPackages && allPackages.length === 0
   const hasIncompatibleOnly = !loadingPackages && allPackages.length > 0 && compatiblePackages.length === 0

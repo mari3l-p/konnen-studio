@@ -11,17 +11,14 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const { sessionId, userPackageId } = await req.json()
 
     if (!sessionId || !userPackageId) {
-      return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+      return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 })
     }
 
-    // Toda la validación (paquete, disciplina, disponibilidad, duplicados,
-    // descuento de crédito) ocurre ahora DENTRO de la función SQL,
-    // protegida con locks de fila. Ya no hay condición de carrera posible.
     const { data, error } = await supabaseAdmin.rpc('realizar_reserva', {
       p_user_id: user.id,
       p_session_id: sessionId,
@@ -29,18 +26,17 @@ export async function POST(req: NextRequest) {
     })
 
     if (error) {
-      console.error('Booking RPC error:', error.message)
-      return NextResponse.json({ error: 'Error al procesar la reserva' }, { status: 500 })
+      console.error('Error en RPC:', error)
+      return NextResponse.json({ error: 'Error interno en la base de datos' }, { status: 500 })
     }
 
-    if (!data?.success) {
-      return NextResponse.json({ error: data?.error ?? 'No se pudo completar la reserva' }, { status: 400 })
+    // Aquí capturamos el mensaje que viene del SQL (ej: "Tu paquete ha vencido")
+    if (!data.success) {
+      return NextResponse.json({ error: data.error }, { status: 400 })
     }
 
     return NextResponse.json({ success: true })
-
   } catch (err: any) {
-    console.error('Booking with package error:', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
