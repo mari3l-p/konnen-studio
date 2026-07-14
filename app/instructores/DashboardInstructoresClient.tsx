@@ -33,8 +33,11 @@ export default function DashboardInstructoresClient({
   const [selectedClass, setSelectedClass] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   
+  // Estados para agregar cliente con búsqueda y créditos reales
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
-  const [newCustomerName, setNewCustomerName] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [selectedUser, setSelectedUser] = useState<any>(null)
   const [addingLoading, setAddingLoading] = useState(false)
 
   const [form, setForm] = useState({
@@ -91,22 +94,71 @@ export default function DashboardInstructoresClient({
     closeModal()
   }
 
+  // Búsqueda independiente solo de perfiles
+  async function handleSearch(query: string) {
+    setSearchQuery(query)
+    setSelectedUser(null)
+
+    if (query.trim().length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .ilike('full_name', `%${query}%`)
+      .limit(5)
+
+    if (data && !error) {
+      // Para cada perfil encontrado, consultamos sus paquetes de forma independiente
+      const usersWithPkgs = await Promise.all(
+        data.map(async (u) => {
+          const { data: pkgs } = await supabase
+            .from('user_packages')
+            .select('id, classes_remaining, status, created_at')
+            .eq('user_id', u.id)
+            .order('created_at', { ascending: false })
+          return { ...u, user_packages: pkgs || [] }
+        })
+      )
+      setSearchResults(usersWithPkgs)
+    }
+  }
+
   async function handleAddCustomer() {
-    if (!newCustomerName.trim()) return
+    if (!selectedUser) return
+
+    const pkgs = selectedUser.user_packages || []
+    const activePackage = pkgs.find((p: any) => p.status?.toLowerCase() === 'active') || pkgs[0]
+    const credits = activePackage?.classes_remaining || 0
+
+    if (credits <= 0) {
+      const confirmOverride = window.confirm(`Este usuario no tiene créditos disponibles (0). ¿Seguro que quieres agregarlo a la clase de todos modos?`)
+      if (!confirmOverride) return
+    }
+
     setAddingLoading(true)
 
     try {
-      const { data, error } = await supabase
+      const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
           session_id: selectedClass.id,
-          guest_name: newCustomerName,
+          user_id: selectedUser.id,
           status: 'confirmed'
         })
         .select('id')
         .single()
 
-      if (error) throw error
+      if (bookingError) throw bookingError
+
+      if (activePackage) {
+        await supabase
+          .from('user_packages')
+          .update({ classes_remaining: credits - 1 })
+          .eq('id', activePackage.id)
+      }
 
       const updatedClasses = classes.map((c: any) => {
         if (c.id === selectedClass.id) {
@@ -115,7 +167,7 @@ export default function DashboardInstructoresClient({
           
           return {
             ...c,
-            attendees: [...(c.attendees || []), { id: data.id, name: newCustomerName }],
+            attendees: [...(c.attendees || []), { id: bookingData.id, name: selectedUser.full_name }],
             availability: {
               ...c.availability,
               booked_count: currentBooked + 1,
@@ -129,25 +181,51 @@ export default function DashboardInstructoresClient({
       setClasses(updatedClasses)
       setSelectedClass(updatedClasses.find((c: any) => c.id === selectedClass.id))
       
-      setNewCustomerName('')
+      setSelectedUser(null)
+      setSearchQuery('')
+      setSearchResults([])
       setIsAddingCustomer(false)
     } catch (error: any) {
-      alert('Error al agregar el cliente manualmente: ' + error.message)
+      alert('Error al agregar la reserva: ' + error.message)
     } finally {
       setAddingLoading(false)
     }
   }
 
   async function handleRemoveCustomer(bookingId: string) {
-    if (!confirm('¿Estás seguro de que deseas cancelar esta reserva?')) return;
+    if (!confirm('¿Estás seguro de que deseas cancelar esta reserva y devolver el crédito al cliente?')) return;
 
     try {
-      const { error } = await supabase
+      const { data: bookingInfo, error: fetchError } = await supabase
+        .from('bookings')
+        .select('user_id')
+        .eq('id', bookingId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const { error: cancelError } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', bookingId)
 
-      if (error) throw error
+      if (cancelError) throw cancelError
+
+      if (bookingInfo?.user_id) {
+        const { data: userPackages, error: pkgError } = await supabase
+          .from('user_packages')
+          .select('id, classes_remaining')
+          .eq('user_id', bookingInfo.user_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (!pkgError && userPackages && userPackages.length > 0) {
+          await supabase
+            .from('user_packages')
+            .update({ classes_remaining: userPackages[0].classes_remaining + 1 })
+            .eq('id', userPackages[0].id)
+        }
+      }
 
       const updatedClasses = classes.map((c: any) => {
         if (c.id === selectedClass.id) {
@@ -170,14 +248,16 @@ export default function DashboardInstructoresClient({
       setClasses(updatedClasses)
       setSelectedClass(updatedClasses.find((c: any) => c.id === selectedClass.id))
     } catch (error: any) {
-      alert('Error al eliminar la reserva: ' + error.message)
+      alert('Error al cancelar la reserva: ' + error.message)
     }
   }
 
   const closeModal = () => {
     setSelectedClass(null)
     setIsAddingCustomer(false)
-    setNewCustomerName('')
+    setSelectedUser(null)
+    setSearchQuery('')
+    setSearchResults([])
   }
 
   if (!isMounted) return <div style={{ minHeight: '100vh', background: '#000' }} />
@@ -494,7 +574,7 @@ export default function DashboardInstructoresClient({
                                   <button 
                                     onClick={() => handleRemoveCustomer(attendee.id)} 
                                     style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2 }}
-                                    title="Cancelar reserva"
+                                    title="Cancelar reserva y devolver crédito"
                                   >
                                     <X size={14} />
                                   </button>
@@ -505,31 +585,64 @@ export default function DashboardInstructoresClient({
                         )}
 
                         {isAdmin && isAddingCustomer && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: selectedClass.attendees?.length > 0 ? 10 : 0 }}>
-                            <input
-                              type="text"
-                              placeholder="Nombre del cliente..."
-                              value={newCustomerName}
-                              onChange={(e) => setNewCustomerName(e.target.value)}
-                              style={{ flex: 1, background: '#000', border: '1px solid #333', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#fff', outline: 'none' }}
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleAddCustomer()
-                              }}
-                            />
-                            <button
-                              onClick={handleAddCustomer}
-                              disabled={addingLoading || !newCustomerName.trim()}
-                              style={{ background: '#fff', color: '#000', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (addingLoading || !newCustomerName.trim()) ? 0.5 : 1 }}
-                            >
-                              {addingLoading ? '...' : 'Guardar'}
-                            </button>
-                            <button
-                              onClick={() => { setIsAddingCustomer(false); setNewCustomerName(''); }}
-                              style={{ background: 'transparent', color: '#666', border: 'none', fontSize: 12, cursor: 'pointer' }}
-                            >
-                              <X size={16} />
-                            </button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: selectedClass.attendees?.length > 0 ? 10 : 0 }}>
+                            <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+                              <div style={{ flex: 1, position: 'relative' }}>
+                                <input
+                                  type="text"
+                                  placeholder="Buscar cliente..."
+                                  value={searchQuery}
+                                  onChange={(e) => handleSearch(e.target.value)}
+                                  style={{ width: '100%', background: '#000', border: '1px solid #333', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#fff', outline: 'none' }}
+                                  autoFocus
+                                />
+                                
+                                {/* Dropdown de Resultados de Búsqueda independiente */}
+                                {searchResults.length > 0 && !selectedUser && (
+                                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #333', borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 150, overflowY: 'auto' }}>
+                                    {searchResults.map(user => {
+                                      const pkgs = user.user_packages || [];
+                                      const credits = pkgs.reduce((sum: number, p: any) => sum + (p.classes_remaining || 0), 0);
+                                      
+                                      return (
+                                        <div 
+                                          key={user.id} 
+                                          onClick={() => { setSelectedUser(user); setSearchQuery(user.full_name); setSearchResults([]); }}
+                                          style={{ padding: '8px 10px', borderBottom: '1px solid #222', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                        >
+                                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: 12, color: '#fff' }}>{user.full_name}</span>
+                                            <span style={{ fontSize: 9, color: '#888' }}>{user.email || 'Sin correo'}</span>
+                                          </div>
+                                          <span style={{ fontSize: 10, color: credits > 0 ? '#4ade80' : '#f87171' }}>{credits} créditos</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                onClick={handleAddCustomer}
+                                disabled={addingLoading || !selectedUser}
+                                style={{ background: '#fff', color: '#000', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (addingLoading || !selectedUser) ? 0.5 : 1 }}
+                              >
+                                {addingLoading ? '...' : 'Guardar'}
+                              </button>
+                              <button
+                                onClick={() => { setIsAddingCustomer(false); setSelectedUser(null); setSearchQuery(''); setSearchResults([]); }}
+                                style={{ background: 'transparent', color: '#666', border: 'none', fontSize: 12, cursor: 'pointer' }}
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                            
+                            {/* Texto informativo de selección */}
+                            {selectedUser && (
+                              <span style={{ fontSize: 11, color: '#aaa' }}>
+                                Seleccionado: <strong style={{ color: '#fff' }}>{selectedUser.full_name}</strong>
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

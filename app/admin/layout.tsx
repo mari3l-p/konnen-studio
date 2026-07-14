@@ -16,7 +16,8 @@ import {
   ExternalLink,
   ShoppingBag,
   Cake,
-  BicepsFlexed
+  BicepsFlexed,
+  SquareUserRound
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -29,6 +30,7 @@ const NAV = [
   { label: 'Reservas', href: '/admin/reservas', icon: BookOpen },
   { label: 'Paquetes', href: '/admin/paquetes', icon: ShoppingBag },
   { label: 'Clientes', href: '/admin/clientes', icon: Users },
+  { label: 'Clientes Info', href: '/admin/clientesInfo', icon: SquareUserRound },
   { label: 'Eventos', href: '/admin/eventos', icon: Ticket },
   { label: 'Birthday', href: '/admin/birthday', icon: Cake },
   { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
