@@ -23,18 +23,30 @@ type Props = {
   onClose: () => void
 }
 
-// Validación dinámica sincronizada con el backend
-function isCompatible(packageClassType: string, sessionDiscipline: string): boolean {
-  if (!packageClassType || !sessionDiscipline) return false
+function isCompatible(packageTitle: string, packageClassType: string, sessionClassName: string, sessionDiscipline: string): boolean {
+  if (!packageClassType || !sessionDiscipline || !sessionClassName) return false
 
-  const pkg = packageClassType.toLowerCase().trim()
-  const cls = sessionDiscipline.toLowerCase().trim()
+  const normalize = (text: string) => 
+    text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  // Paquete universal
-  if (pkg.includes('todas las disciplinas') || pkg.includes('todas')) return true
+  const pkgTitle = normalize(packageTitle);
+  const pkgType = normalize(packageClassType);
+  const clsName = normalize(sessionClassName);
+  const clsDiscipline = normalize(sessionDiscipline);
 
-  // Comparación dinámica: si el nombre es igual o uno contiene al otro
-  if (pkg === cls || pkg.includes(cls) || cls.includes(pkg)) return true
+  // 1. RESTRICCIÓN NUEVA: Si el paquete es "Duo", solo sirve para clases "Duo"
+  if (pkgTitle.includes('duo') && !clsName.includes('duo')) {
+    return false;
+  }
+
+  // 2. RESTRICCIÓN ANTERIOR: Si la clase es "Duo", requiere paquete "Duo"
+  if (clsName.includes('duo')) {
+    return pkgTitle.includes('duo');
+  }
+
+  // 3. Lógica estándar para el resto
+  if (pkgType.includes('todas las disciplinas') || pkgType.includes('todas')) return true
+  if (pkgType === clsDiscipline || pkgType.includes(clsDiscipline) || clsDiscipline.includes(pkgType)) return true
 
   return false
 }
@@ -66,12 +78,10 @@ export default function BookingModal({ session, onClose }: Props) {
         .eq('name', session.class_types.name)
         .single()
 
-      // Si la disciplina es null, usamos el nombre de la clase como respaldo
       const dbDiscipline = classType?.discipline ?? classTypeByName?.discipline
       const finalDisciplineToCheck = dbDiscipline || session.class_types.name || ''
       setSessionDiscipline(finalDisciplineToCheck)
 
-      // Obtenemos los paquetes activos del usuario
       const { data } = await supabase
         .from('user_packages')
         .select('*, packages(title, class_type)')
@@ -84,9 +94,14 @@ export default function BookingModal({ session, onClose }: Props) {
       const pkgs = data ?? []
       setAllPackages(pkgs)
 
-      // Filtramos SOLAMENTE los paquetes compatibles
+      // Filtrado usando la lógica mejorada
       const compatible = pkgs.filter(up =>
-        isCompatible(up.packages.class_type, finalDisciplineToCheck)
+        isCompatible(
+          up.packages.title,
+          up.packages.class_type,
+          session.class_types.name,
+          finalDisciplineToCheck
+        )
       )
       setCompatiblePackages(compatible)
 
@@ -97,35 +112,34 @@ export default function BookingModal({ session, onClose }: Props) {
   }, [session.class_types.id, session.class_types.name])
 
   async function handleReserve() {
-  if (!selectedPackage) return
-  setLoading(true)
-  setError(null) // Resetea errores previos
+    if (!selectedPackage) return
+    setLoading(true)
+    setError(null)
 
-  try {
-    const res = await fetch('/api/bookings/with-package', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: session.id,
-        userPackageId: selectedPackage,
-      }),
-    })
-    
-    const result = await res.json()
-    
-    if (!res.ok) {
-      // Lanzamos el error que viene del SQL para mostrarlo en el estado 'error'
-      throw new Error(result.error || 'Error al procesar la reserva')
+    try {
+      const res = await fetch('/api/bookings/with-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: session.id,
+          userPackageId: selectedPackage,
+        }),
+      })
+      
+      const result = await res.json()
+      
+      if (!res.ok) {
+        throw new Error(result.error || 'Error al procesar la reserva')
+      }
+      
+      onClose()
+      window.location.reload()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
-    
-    onClose()
-    window.location.reload()
-  } catch (e: any) {
-    setError(e.message) // Ahora el usuario verá el mensaje real (ej: "Clase llena")
-  } finally {
-    setLoading(false)
   }
-}
 
   const hasNoPackages = !loadingPackages && allPackages.length === 0
   const hasIncompatibleOnly = !loadingPackages && allPackages.length > 0 && compatiblePackages.length === 0
@@ -133,7 +147,6 @@ export default function BookingModal({ session, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
-
         <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100">
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -164,22 +177,17 @@ export default function BookingModal({ session, onClose }: Props) {
 
         {loadingPackages ? (
           <div className="py-4 text-center text-gray-400 text-sm">Cargando paquetes...</div>
-
         ) : hasNoPackages ? (
           <div className="flex flex-col gap-3">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
               <p className="font-semibold text-amber-800 mb-1">Necesitas un paquete activo</p>
               <p className="text-amber-700">Para reservar una clase necesitas adquirir un paquete primero.</p>
             </div>
-            <button
-              onClick={() => { onClose(); router.push('/paquetes') }}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
-            >
+            <button onClick={() => { onClose(); router.push('/paquetes') }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
               Ver paquetes disponibles
             </button>
             <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">Cancelar</button>
           </div>
-
         ) : hasIncompatibleOnly ? (
           <div className="flex flex-col gap-3">
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
@@ -188,61 +196,33 @@ export default function BookingModal({ session, onClose }: Props) {
                 <div>
                   <p className="font-semibold text-orange-800 mb-1">Paquete incompatible</p>
                   <p className="text-orange-700">
-                    Tus paquetes activos no incluyen clases de{' '}
-                    <strong>{session.class_types.name}</strong>. Necesitas un paquete para esta disciplina.
+                    Tus paquetes activos no incluyen clases de <strong>{session.class_types.name}</strong>.
                   </p>
                 </div>
               </div>
             </div>
-
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-500 font-medium mb-2">Tus paquetes activos:</p>
-              {allPackages.map(up => (
-                <div key={up.id} className="flex justify-between text-xs text-gray-600 py-1">
-                  <span>{up.packages.title} · {up.packages.class_type}</span>
-                  <span className="text-gray-400">{up.classes_remaining} clases</span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => { onClose(); router.push('/paquetes') }}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
-            >
+            <button onClick={() => { onClose(); router.push('/paquetes') }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
               Comprar paquete para esta disciplina
             </button>
             <button onClick={onClose} className="w-full text-gray-500 text-sm py-2">Cancelar</button>
           </div>
-
         ) : (
           <div className="flex flex-col gap-3">
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Package className="w-4 h-4 text-blue-600" />
-              Selecciona tu paquete
+              <Package className="w-4 h-4 text-blue-600" /> Selecciona tu paquete
             </p>
 
             {compatiblePackages.map(up => (
-              <button
-                key={up.id}
-                onClick={() => setSelectedPackage(up.id)}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-colors
-                  ${selectedPackage === up.id
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-100 hover:border-gray-200 bg-white'
-                  }`}
-              >
+              <button key={up.id} onClick={() => setSelectedPackage(up.id)} 
+                className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selectedPackage === up.id ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">{up.packages.title}</p>
                     <p className="text-gray-400 text-xs mt-0.5">{up.packages.class_type}</p>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <p className="text-blue-600 font-bold text-sm">
-                      {up.classes_remaining} {up.classes_remaining === 1 ? 'clase' : 'clases'}
-                    </p>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      Vence {format(new Date(up.expires_at), "d MMM", { locale: es })}
-                    </p>
+                    <p className="text-blue-600 font-bold text-sm">{up.classes_remaining} clases</p>
+                    <p className="text-gray-400 text-xs mt-0.5">Vence {format(new Date(up.expires_at), "d MMM", { locale: es })}</p>
                   </div>
                 </div>
               </button>
@@ -256,11 +236,8 @@ export default function BookingModal({ session, onClose }: Props) {
 
             {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
 
-            <button
-              onClick={handleReserve}
-              disabled={loading || !selectedPackage}
-              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
+            <button onClick={handleReserve} disabled={loading || !selectedPackage} 
+              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {loading ? 'Procesando...' : 'Confirmar reserva'}
             </button>
           </div>

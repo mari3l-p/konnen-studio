@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 })
     }
 
+    // La lógica de verificar si la reserva ya existía (cancelada) 
+    // ahora vive dentro de la función RPC 'realizar_reserva'
     const { data, error } = await supabaseAdmin.rpc('realizar_reserva', {
       p_user_id: user.id,
       p_session_id: sessionId,
@@ -30,9 +32,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Error interno en la base de datos' }, { status: 500 })
     }
 
-    // Aquí capturamos el mensaje que viene del SQL (ej: "Tu paquete ha vencido")
-    if (!data.success) {
-      return NextResponse.json({ error: data.error }, { status: 400 })
+    // data es un array de filas porque definimos RETURNS TABLE en la función SQL
+    const result = data[0]
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
     return NextResponse.json({ success: true })
