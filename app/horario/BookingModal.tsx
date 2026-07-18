@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Package, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Package, AlertCircle, Users, Plus, Minus } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Session } from '@/types'
@@ -23,32 +23,31 @@ type Props = {
   onClose: () => void
 }
 
+function normalize(text: string) {
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
 function isCompatible(packageTitle: string, packageClassType: string, sessionClassName: string, sessionDiscipline: string): boolean {
   if (!packageClassType || !sessionDiscipline || !sessionClassName) return false
 
-  const normalize = (text: string) => 
-    text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const pkgTitle = normalize(packageTitle)
+  const pkgType = normalize(packageClassType)
+  const clsName = normalize(sessionClassName)
+  const clsDiscipline = normalize(sessionDiscipline)
 
-  const pkgTitle = normalize(packageTitle);
-  const pkgType = normalize(packageClassType);
-  const clsName = normalize(sessionClassName);
-  const clsDiscipline = normalize(sessionDiscipline);
+  if (pkgTitle.includes('duo') && !clsName.includes('duo')) return false
+  if (clsName.includes('duo')) return pkgTitle.includes('duo')
 
-  // 1. RESTRICCIÓN NUEVA: Si el paquete es "Duo", solo sirve para clases "Duo"
-  if (pkgTitle.includes('duo') && !clsName.includes('duo')) {
-    return false;
-  }
-
-  // 2. RESTRICCIÓN ANTERIOR: Si la clase es "Duo", requiere paquete "Duo"
-  if (clsName.includes('duo')) {
-    return pkgTitle.includes('duo');
-  }
-
-  // 3. Lógica estándar para el resto
   if (pkgType.includes('todas las disciplinas') || pkgType.includes('todas')) return true
   if (pkgType === clsDiscipline || pkgType.includes(clsDiscipline) || clsDiscipline.includes(pkgType)) return true
 
   return false
+}
+
+// Paquetes que permiten reservar varios espacios (compartidos entre personas)
+function isSharedPackage(packageTitle: string): boolean {
+  const title = normalize(packageTitle)
+  return title.includes('mixto') || title.includes('elite mix')
 }
 
 export default function BookingModal({ session, onClose }: Props) {
@@ -60,6 +59,9 @@ export default function BookingModal({ session, onClose }: Props) {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
   const [loadingPackages, setLoadingPackages] = useState(true)
   const [sessionDiscipline, setSessionDiscipline] = useState<string | null>(null)
+
+  // Estado para reservas grupales (paquetes Mixto / Elite Mix)
+  const [guestNames, setGuestNames] = useState<string[]>([''])
 
   useEffect(() => {
     async function fetchData() {
@@ -94,14 +96,8 @@ export default function BookingModal({ session, onClose }: Props) {
       const pkgs = data ?? []
       setAllPackages(pkgs)
 
-      // Filtrado usando la lógica mejorada
       const compatible = pkgs.filter(up =>
-        isCompatible(
-          up.packages.title,
-          up.packages.class_type,
-          session.class_types.name,
-          finalDisciplineToCheck
-        )
+        isCompatible(up.packages.title, up.packages.class_type, session.class_types.name, finalDisciplineToCheck)
       )
       setCompatiblePackages(compatible)
 
@@ -111,8 +107,49 @@ export default function BookingModal({ session, onClose }: Props) {
     fetchData()
   }, [session.class_types.id, session.class_types.name])
 
+  const selectedPackageData = useMemo(
+    () => compatiblePackages.find(p => p.id === selectedPackage) ?? null,
+    [compatiblePackages, selectedPackage]
+  )
+
+  const isShared = selectedPackageData ? isSharedPackage(selectedPackageData.packages.title) : false
+
+  const spotsLeft = session.session_availability?.spots_left ?? 0
+  const maxQuantity = selectedPackageData
+    ? Math.min(selectedPackageData.classes_remaining, spotsLeft)
+    : 1
+
+  // Al cambiar de paquete, reseteamos el arreglo de nombres
+  useEffect(() => {
+    setGuestNames([''])
+  }, [selectedPackage])
+
+  function updateGuestName(index: number, value: string) {
+    setGuestNames(prev => prev.map((n, i) => (i === index ? value : n)))
+  }
+
+  function addGuestSlot() {
+    if (guestNames.length >= maxQuantity) return
+    setGuestNames(prev => [...prev, ''])
+  }
+
+  function removeGuestSlot(index: number) {
+    if (guestNames.length <= 1) return
+    setGuestNames(prev => prev.filter((_, i) => i !== index))
+  }
+
   async function handleReserve() {
     if (!selectedPackage) return
+
+    // Validación en cliente para reservas grupales: todos los nombres llenos
+    if (isShared && guestNames.length > 1) {
+      const hasEmpty = guestNames.some(n => n.trim().length === 0)
+      if (hasEmpty) {
+        setError('Completa el nombre de cada reserva antes de confirmar')
+        return
+      }
+    }
+
     setLoading(true)
     setError(null)
 
@@ -123,15 +160,17 @@ export default function BookingModal({ session, onClose }: Props) {
         body: JSON.stringify({
           sessionId: session.id,
           userPackageId: selectedPackage,
+          // Solo mandamos nombres si es paquete compartido y hay más de 1 reserva
+          guestNames: isShared && guestNames.length > 0 ? guestNames : undefined,
         }),
       })
-      
+
       const result = await res.json()
-      
+
       if (!res.ok) {
         throw new Error(result.error || 'Error al procesar la reserva')
       }
-      
+
       onClose()
       window.location.reload()
     } catch (e: any) {
@@ -146,7 +185,10 @@ export default function BookingModal({ session, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative flex flex-col"
+        style={{ maxHeight: '90vh', overflowY: 'auto' }}
+      >
         <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100">
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -171,7 +213,7 @@ export default function BookingModal({ session, onClose }: Props) {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Espacios disponibles</span>
-            <span className="font-medium">{session.session_availability?.spots_left ?? '—'}</span>
+            <span className="font-medium">{spotsLeft || '—'}</span>
           </div>
         </div>
 
@@ -213,7 +255,7 @@ export default function BookingModal({ session, onClose }: Props) {
             </p>
 
             {compatiblePackages.map(up => (
-              <button key={up.id} onClick={() => setSelectedPackage(up.id)} 
+              <button key={up.id} onClick={() => setSelectedPackage(up.id)}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selectedPackage === up.id ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
                 <div className="flex items-start justify-between">
                   <div>
@@ -228,15 +270,68 @@ export default function BookingModal({ session, onClose }: Props) {
               </button>
             ))}
 
-            {selectedPackage && (
+            {/* SECCIÓN DE RESERVAS GRUPALES: solo para paquetes Mixto / Elite Mix */}
+            {isShared && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col gap-3">
+                <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+                  <Users className="w-4 h-4" /> Este paquete es compartido — puedes reservar varios espacios
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-purple-700">Número de reservas</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => removeGuestSlot(guestNames.length - 1)}
+                      disabled={guestNames.length <= 1}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-purple-300 text-purple-700 disabled:opacity-30"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-sm font-bold text-purple-900 w-5 text-center">{guestNames.length}</span>
+                    <button
+                      onClick={addGuestSlot}
+                      disabled={guestNames.length >= maxQuantity}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-purple-300 text-purple-700 disabled:opacity-30"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-purple-600 -mt-1">
+                  Máximo {maxQuantity} (según tus créditos y espacios disponibles)
+                </p>
+
+                <div className="flex flex-col gap-2">
+                  {guestNames.map((name, index) => (
+                    <input
+                      key={index}
+                      type="text"
+                      placeholder={index === 0 ? 'Tu nombre' : `Nombre invitado ${index + 1}`}
+                      value={name}
+                      onChange={(e) => updateGuestName(index, e.target.value)}
+                      className="w-full bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedPackage && !isShared && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
                 ✓ Se descontará 1 clase de tu paquete
               </div>
             )}
 
+            {selectedPackage && isShared && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                ✓ Se descontarán {guestNames.length} {guestNames.length === 1 ? 'clase' : 'clases'} de tu paquete y se ocuparán {guestNames.length} espacios
+              </div>
+            )}
+
             {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
 
-            <button onClick={handleReserve} disabled={loading || !selectedPackage} 
+            <button onClick={handleReserve} disabled={loading || !selectedPackage}
               className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {loading ? 'Procesando...' : 'Confirmar reserva'}
             </button>

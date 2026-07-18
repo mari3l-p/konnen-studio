@@ -92,12 +92,14 @@ export default async function DashboardPage() {
       return estadoReserva.toLowerCase() !== 'cancelled' && estadoReserva.toLowerCase() !== 'cancelada';
     }) || [];
     
-    // Extraemos el ID y el nombre (perfil o invitado manual)
+    // Extraemos el ID y el nombre. Prioridad: guest_name (reserva grupal con nombre
+    // específico del invitado) -> full_name del perfil (reserva individual normal)
+    // -> texto genérico como último respaldo.
     const attendees = activeBookings.map((reserva: any) => {
       const perfil = reserva.profiles || {};
       return {
         id: reserva.id,
-        name: perfil.full_name || reserva.guest_name || 'Reserva manual sin nombre'
+        name: reserva.guest_name || perfil.full_name || 'Reserva manual sin nombre'
       };
     });
     
