@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -10,6 +10,29 @@ export default function ActualizarContrasena() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<boolean>(false)
+  const [sessionReady, setSessionReady] = useState(false)
+
+  // IMPORTANTE: Asegurar que Supabase procese el token del correo al cargar la página
+  useEffect(() => {
+    const handleSession = async () => {
+      // Supabase v2 detecta automáticamente el hash de recuperación si está configurado,
+      // pero a veces en WebViews de Instagram es necesario atrapar el evento:
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      // O escuchar cambios de auth
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || session) {
+          setSessionReady(true)
+        }
+      })
+
+      if (session) {
+        setSessionReady(true)
+      }
+    }
+
+    handleSession()
+  }, [])
 
   async function handleUpdatePassword(e: React.FormEvent) {
     e.preventDefault()
@@ -22,7 +45,6 @@ export default function ActualizarContrasena() {
     setLoading(true)
     setError(null)
 
-    // Supabase toma la sesión que venía escondida en el link del correo
     const { error } = await supabase.auth.updateUser({
       password: password
     })
@@ -51,6 +73,11 @@ export default function ActualizarContrasena() {
           <p className="text-gray-400 text-sm mt-1">Crea tu nueva contraseña</p>
         </div>
 
+        {/* Advertencia si se abre desde Instagram */}
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+          Si abriste esto desde Instagram, te recomendamos tocar los tres puntos (...) arriba a la derecha y seleccionar <b>&quot;Abrir en el navegador&quot;</b> (Safari o Chrome) para evitar errores.
+        </div>
+
         {success ? (
           <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-xl text-center text-sm font-medium">
             ¡Contraseña actualizada con éxito!<br/>
@@ -58,7 +85,6 @@ export default function ActualizarContrasena() {
           </div>
         ) : (
           <form onSubmit={handleUpdatePassword} className="flex flex-col gap-5">
-            
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-500 font-medium">Nueva contraseña</label>
               <input
