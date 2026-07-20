@@ -4,7 +4,7 @@ import { siInstagram, siWhatsapp, siTiktok } from "simple-icons";
 const LINKS = [
   {
     label: "Instagram",
-    href: "https://www.instagram.com/konnen.studio/",
+    href: "https://www.instagram.com/konnen_studio?igsh=MTByc2N0eDRxdW9lYw%3D%3D",
     icon: siInstagram,
   },
   {
