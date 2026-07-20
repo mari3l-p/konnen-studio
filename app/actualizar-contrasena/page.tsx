@@ -10,28 +10,31 @@ export default function ActualizarContrasena() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<boolean>(false)
-  const [sessionReady, setSessionReady] = useState(false)
+  const [verificando, setVerificando] = useState(true)
 
-  // IMPORTANTE: Asegurar que Supabase procese el token del correo al cargar la página
   useEffect(() => {
-    const handleSession = async () => {
-      // Supabase v2 detecta automáticamente el hash de recuperación si está configurado,
-      // pero a veces en WebViews de Instagram es necesario atrapar el evento:
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
-      // O escuchar cambios de auth
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'PASSWORD_RECOVERY' || session) {
-          setSessionReady(true)
-        }
-      })
+    // Al cargar, revisamos si viene un código de recuperación en los parámetros de la URL (Query Params)
+    const handleCodeExchange = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
 
-      if (session) {
-        setSessionReady(true)
+      if (code) {
+        // Intercambiamos el código por una sesión de Supabase
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (error) {
+          setError('El enlace de recuperación ha expirado o ya fue utilizado.')
+        }
+      } else {
+        // Si no viene en la URL, verificamos si ya existe una sesión activa
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          setError('Auth session missing! Por favor solicita un nuevo enlace de recuperación.')
+        }
       }
+      setVerificando(false)
     }
 
-    handleSession()
+    handleCodeExchange()
   }, [])
 
   async function handleUpdatePassword(e: React.FormEvent) {
@@ -73,12 +76,11 @@ export default function ActualizarContrasena() {
           <p className="text-gray-400 text-sm mt-1">Crea tu nueva contraseña</p>
         </div>
 
-        {/* Advertencia si se abre desde Instagram */}
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-          Si abriste esto desde Instagram, te recomendamos tocar los tres puntos (...) arriba a la derecha y seleccionar <b>&quot;Abrir en el navegador&quot;</b> (Safari o Chrome) para evitar errores.
-        </div>
-
-        {success ? (
+        {verificando ? (
+          <div className="text-center text-sm text-gray-500 py-6">
+            Verificando enlace...
+          </div>
+        ) : success ? (
           <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-xl text-center text-sm font-medium">
             ¡Contraseña actualizada con éxito!<br/>
             <span className="font-normal text-green-600 mt-1 block">Redirigiendo...</span>
@@ -101,7 +103,7 @@ export default function ActualizarContrasena() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!error && error.includes('expirado')}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors mt-2"
             >
               {loading ? 'Actualizando...' : 'Guardar contraseña'}
