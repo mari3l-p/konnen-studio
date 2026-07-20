@@ -13,34 +13,61 @@ export default function ActualizarContrasena() {
   const [isReady, setIsReady] = useState(false) // Controla si la sesión es válida
 
   useEffect(() => {
-    const handleAuth = async () => {
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
+    let isMounted = true
 
-      if (code) {
-        // Intercambio de código por sesión real
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error) {
-          setError('El enlace ha expirado o no es válido.')
-        } else {
+    // 1) Escuchamos el evento oficial que dispara Supabase cuando
+    //    detecta y procesa automáticamente el link de recuperación.
+    //    NO llamamos exchangeCodeForSession manualmente: supabase-js
+    //    ya lo hace solo (detectSessionInUrl=true por defecto) y si
+    //    lo hacemos nosotros también, el código de un solo uso ya
+    //    fue consumido y el segundo intento falla con "expirado/inválido".
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted) return
+
+        if (event === 'PASSWORD_RECOVERY') {
           setIsReady(true)
-        }
-      } else {
-        // Verificar si ya hay una sesión activa
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
+          setError(null)
+        } else if (event === 'SIGNED_IN' && session) {
+          // En algunos casos el evento llega como SIGNED_IN en vez de
+          // PASSWORD_RECOVERY dependiendo de la versión del SDK.
           setIsReady(true)
-        } else {
-          setError('Sesión no encontrada. Por favor, abre este enlace en Safari o Chrome.')
+          setError(null)
         }
       }
+    )
+
+    // 2) Por si el evento ya se disparó ANTES de que este componente
+    //    montara el listener (puede pasar), chequeamos también si ya
+    //    hay una sesión activa.
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (isMounted && session) {
+        setIsReady(true)
+      }
     }
-    handleAuth()
+    checkExistingSession()
+
+    // 3) Damos un pequeño margen antes de mostrar error, para no
+    //    "flashear" el mensaje mientras el SDK todavía está procesando
+    //    el link en segundo plano.
+    const timeout = setTimeout(() => {
+      if (isMounted && !isReady) {
+        checkExistingSession()
+      }
+    }, 1500)
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleUpdatePassword(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.')
       return
@@ -59,7 +86,7 @@ export default function ActualizarContrasena() {
     } else {
       setSuccess(true)
       setTimeout(() => {
-        router.push('/dashboard') 
+        router.push('/dashboard')
         router.refresh()
       }, 2000)
     }
@@ -68,7 +95,7 @@ export default function ActualizarContrasena() {
   return (
     <div className="min-h-screen bg-[#f4f7fa] flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full max-w-sm p-8">
-        
+
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center mb-3">
             <span className="text-black font-extrabold text-sm">Kn</span>
@@ -102,6 +129,10 @@ export default function ActualizarContrasena() {
             </div>
 
             {error && <p className="text-red-500 text-xs font-medium">{error}</p>}
+
+            {!isReady && !error && (
+              <p className="text-gray-400 text-xs">Validando tu enlace...</p>
+            )}
 
             <button
               type="submit"
