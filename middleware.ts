@@ -26,8 +26,11 @@ export async function middleware(req: NextRequest) {
   // ESTO ES CLAVE: Supabase necesita refrescar la sesión aquí
   const { data: { user } } = await supabase.auth.getUser()
 
+  const { pathname } = req.nextUrl
+
   // Lógica de protección para rutas /admin
-  if (req.nextUrl.pathname.startsWith('/admin')) {
+  // OJO: excluimos /admin/login para evitar loop infinito de redirects
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', req.url))
     }
