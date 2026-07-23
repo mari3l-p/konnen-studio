@@ -35,8 +35,12 @@ function isCompatible(packageTitle: string, packageClassType: string, sessionCla
   const clsName = normalize(sessionClassName)
   const clsDiscipline = normalize(sessionDiscipline)
 
+  // Un paquete "duo" solo sirve para reservar clases duo (esto no cambia)
   if (pkgTitle.includes('duo') && !clsName.includes('duo')) return false
-  if (clsName.includes('duo')) return pkgTitle.includes('duo')
+
+  // Las clases duo se pueden reservar con CUALQUIER paquete,
+  // EXCEPTO el paquete "Una Clase" (paquete de una sola clase individual)
+  if (clsName.includes('duo') && pkgTitle.includes('una clase')) return false
 
   if (pkgType.includes('todas las disciplinas') || pkgType.includes('todas')) return true
   if (pkgType === clsDiscipline || pkgType.includes(clsDiscipline) || clsDiscipline.includes(pkgType)) return true
