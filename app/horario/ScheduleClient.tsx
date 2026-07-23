@@ -8,6 +8,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Session } from '@/types'
 import BookingModal from './BookingModal'
+import { supabase } from '@/lib/supabase'
 
 type Props = {
   sessions: Session[]
@@ -26,11 +27,12 @@ function getHoursUntilClass(startsAt: string): number {
 export default function ScheduleClient({
   sessions = [],
   bookedSessionIds = [],
-  isLoggedIn = false,
+  isLoggedIn: initialIsLoggedIn = false,
 }: Props) {
   const router = useRouter()
   
   const [isMounted, setIsMounted] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(initialIsLoggedIn)
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   )
@@ -38,6 +40,17 @@ export default function ScheduleClient({
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   
   const [isLoadingAction, setIsLoadingAction] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+    async function checkUserSession() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setIsLoggedIn(true)
+      }
+    }
+    checkUserSession()
+  }, [])
 
   const bookedSet = new Set(bookedSessionIds)
 
@@ -47,10 +60,6 @@ export default function ScheduleClient({
 
   const monthLabel = format(weekStart, 'MMMM yyyy', { locale: es })
     .replace(/^\w/, (c) => c.toUpperCase())
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   function handleReserveClick(session: Session) {
     if (!isLoggedIn) {
@@ -176,13 +185,11 @@ export default function ScheduleClient({
               const isLow = spotsLeft > 0 && spotsLeft <= 3
               const isBooked = bookedSet.has(session.id)
               
-              // Tiempos
               const hoursUntil = getHoursUntilClass(session.starts_at)
               const isPast = hoursUntil <= 0
               const canBook = hoursUntil >= 2   
               const canCancel = hoursUntil >= 8 
 
-              // Imagen directa desde la base de datos
               const displayImage = session.class_types.image_url;
 
               return (
@@ -201,7 +208,6 @@ export default function ScheduleClient({
                     </p>
                   </div>
 
-                  {/* Contenedor cuadrado ajustado w-24 h-24 y object-top */}
                   <div className="hidden md:block w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
                     {displayImage ? (
                       <Image
