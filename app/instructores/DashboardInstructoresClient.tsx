@@ -89,7 +89,24 @@ export default function DashboardInstructoresClient({
   }
 
   async function handleCancelSession(id: string) {
-    await supabase.from('sessions').update({ is_cancelled: true }).eq('id', id)
+    // Pedimos .select() para poder detectar si RLS bloqueó el UPDATE en
+    // silencio (Postgres no lanza error, simplemente afecta 0 filas).
+    const { data, error } = await supabase
+      .from('sessions')
+      .update({ is_cancelled: true })
+      .eq('id', id)
+      .select('id')
+
+    if (error) {
+      alert('Error al cancelar la sesión: ' + error.message)
+      return
+    }
+
+    if (!data || data.length === 0) {
+      alert('No se pudo cancelar la sesión. Es probable que tu cuenta no tenga permisos de administrador en la base de datos (revisa la tabla admin_users y sus políticas RLS).')
+      return
+    }
+
     setClasses((prev: any) => prev.filter((c: any) => c.id !== id))
     closeModal()
   }
@@ -198,20 +215,51 @@ export default function DashboardInstructoresClient({
     try {
       const { data: bookingInfo, error: fetchError } = await supabase
         .from('bookings')
-        .select('user_id')
+        .select('user_id, user_package_id')
         .eq('id', bookingId)
         .single()
 
       if (fetchError) throw fetchError
 
-      const { error: cancelError } = await supabase
+      // Pedimos .select() en el UPDATE para poder detectar si RLS bloqueó
+      // la operación en silencio. Postgres NO lanza error cuando una policy
+      // filtra la fila objetivo — simplemente actualiza 0 filas y regresa
+      // éxito. Sin este chequeo, el bug queda invisible en el frontend.
+      const { data: updatedRows, error: cancelError } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', bookingId)
+        .select('id')
 
       if (cancelError) throw cancelError
 
-      if (bookingInfo?.user_id) {
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          'La reserva no se pudo cancelar en la base de datos (probablemente por permisos/RLS). ' +
+          'Revisa que tu cuenta esté correctamente registrada como administrador en la tabla admin_users, ' +
+          'y que esa tabla tenga una política que permita leer tu propia fila.'
+        )
+      }
+
+      // Devolvemos el crédito al paquete EXACTO que se usó originalmente
+      // (bookingInfo.user_package_id), en vez de asumir que es el más
+      // reciente del usuario — así evitamos devolver el crédito al
+      // paquete equivocado si el cliente tiene varios paquetes activos.
+      if (bookingInfo?.user_package_id) {
+        const { data: pkgData } = await supabase
+          .from('user_packages')
+          .select('classes_remaining')
+          .eq('id', bookingInfo.user_package_id)
+          .single()
+
+        if (pkgData) {
+          await supabase
+            .from('user_packages')
+            .update({ classes_remaining: pkgData.classes_remaining + 1, status: 'active' })
+            .eq('id', bookingInfo.user_package_id)
+        }
+      } else if (bookingInfo?.user_id) {
+        // Respaldo para reservas viejas que no tengan user_package_id guardado
         const { data: userPackages, error: pkgError } = await supabase
           .from('user_packages')
           .select('id, classes_remaining')
@@ -569,7 +617,6 @@ export default function DashboardInstructoresClient({
                                   {attendee.name}
                                 </div>
                                 
-                                {/* Botón X solo para el Admin */}
                                 {isAdmin && !isPast && (
                                   <button 
                                     onClick={() => handleRemoveCustomer(attendee.id)} 

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function ActualizarContrasena() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -15,52 +16,59 @@ export default function ActualizarContrasena() {
   useEffect(() => {
     let isMounted = true
 
-    // 1) Escuchamos el evento oficial que dispara Supabase cuando
-    //    detecta y procesa automáticamente el link de recuperación.
-    //    NO llamamos exchangeCodeForSession manualmente: supabase-js
-    //    ya lo hace solo (detectSessionInUrl=true por defecto) y si
-    //    lo hacemos nosotros también, el código de un solo uso ya
-    //    fue consumido y el segundo intento falla con "expirado/inválido".
+    async function processRecoveryLink() {
+      // Con el flujo PKCE (el que usa createBrowserClient de @supabase/ssr),
+      // el link de recuperación llega con ?code=... en la URL. A diferencia
+      // del flujo implícito viejo, ESTE código NO se intercambia solo —
+      // hay que llamarlo explícitamente con exchangeCodeForSession.
+      const code = searchParams.get('code')
+
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (!isMounted) return
+
+        if (exchangeError) {
+          setError('Tu enlace de recuperación ya expiró o no es válido. Por favor solicita uno nuevo.')
+          return
+        }
+
+        setIsReady(true)
+        setError(null)
+        return
+      }
+
+      // Respaldo: por si en algún momento el link llega con el flujo
+      // implícito viejo (#access_token) o si ya existe una sesión activa
+      // de recuperación por algún otro medio.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (isMounted && session) {
+        setIsReady(true)
+        return
+      }
+
+      if (isMounted) {
+        setError('Tu enlace de recuperación ya expiró o no es válido. Por favor solicita uno nuevo.')
+      }
+    }
+
+    processRecoveryLink()
+
+    // Nos seguimos suscribiendo por si el evento llega de forma diferida
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return
 
-        if (event === 'PASSWORD_RECOVERY') {
-          setIsReady(true)
-          setError(null)
-        } else if (event === 'SIGNED_IN' && session) {
-          // En algunos casos el evento llega como SIGNED_IN en vez de
-          // PASSWORD_RECOVERY dependiendo de la versión del SDK.
+        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
           setIsReady(true)
           setError(null)
         }
       }
     )
 
-    // 2) Por si el evento ya se disparó ANTES de que este componente
-    //    montara el listener (puede pasar), chequeamos también si ya
-    //    hay una sesión activa.
-    const checkExistingSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (isMounted && session) {
-        setIsReady(true)
-      }
-    }
-    checkExistingSession()
-
-    // 3) Damos un pequeño margen antes de mostrar error, para no
-    //    "flashear" el mensaje mientras el SDK todavía está procesando
-    //    el link en segundo plano.
-    const timeout = setTimeout(() => {
-      if (isMounted && !isReady) {
-        checkExistingSession()
-      }
-    }, 1500)
-
     return () => {
       isMounted = false
       authListener.subscription.unsubscribe()
-      clearTimeout(timeout)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

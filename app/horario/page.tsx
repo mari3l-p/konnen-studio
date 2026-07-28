@@ -1,6 +1,25 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 import ScheduleClient from './ScheduleClient'
 import { subDays, addDays } from 'date-fns'
+
+// Forzamos renderizado dinámico: sin esto, Next.js puede cachear esta página
+// (y las consultas de Supabase dentro de ella) y seguir mostrando datos viejos
+// de "espacios disponibles" aunque la reserva ya se haya confirmado en la BD.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// Cliente con service role SOLO para el conteo agregado de reservas.
+// Es necesario porque RLS en la tabla `bookings` normalmente solo deja
+// a cada usuario ver SUS PROPIAS reservas, no las de los demás.
+// Para calcular "espacios disponibles" necesitamos ver el total de
+// reservas confirmadas de TODOS los usuarios, así que aquí sí hay que
+// saltarnos RLS. No exponemos datos sensibles: solo usamos session_id
+// para contar, nunca se le regresa al cliente info de otros usuarios.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export default async function HorarioPage() {
   const supabase = await createSupabaseServerClient()
@@ -28,7 +47,7 @@ export default async function HorarioPage() {
   let bookingCounts: Record<string, number> = {}
 
   if (sessionIds.length > 0) {
-    const { data: allBookings } = await supabase
+    const { data: allBookings } = await supabaseAdmin
       .from('bookings')
       .select('session_id')
       .in('session_id', sessionIds)

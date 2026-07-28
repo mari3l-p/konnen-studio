@@ -5,6 +5,13 @@ import DashboardInstructoresClient from './DashboardInstructoresClient'
 import { subDays } from 'date-fns'
 import { redirect } from 'next/navigation' 
 
+// Forzamos renderizado dinámico: sin esto, Next.js puede cachear esta
+// página (y las consultas dentro de ella hechas con fetch, incluyendo las
+// del cliente supabaseAdmin) y seguir mostrando reservas/cancelaciones
+// viejas aunque ya se hayan actualizado en la base de datos.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function DashboardPage() {
   const cookieStore = await cookies()
   
