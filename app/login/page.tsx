@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { supabaseImplicit } from '@/lib/supabase-implicit'
 import { useRouter } from 'next/navigation'
 
 // Añadimos el nuevo modo 'forgot_password'
@@ -75,7 +76,10 @@ export default function LoginPage() {
         return
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Usamos el cliente con flujo IMPLÍCITO (no el cliente principal
+      // con PKCE) para que el link de recuperación funcione aunque se
+      // abra en un dispositivo distinto al que solicitó el cambio.
+      const { error } = await supabaseImplicit.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/actualizar-contrasena`, 
       })
 
