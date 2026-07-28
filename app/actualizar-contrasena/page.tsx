@@ -17,12 +17,40 @@ export default function ActualizarContrasena() {
     let isMounted = true
 
     async function processRecoveryLink() {
-      // Con el flujo PKCE (el que usa createBrowserClient de @supabase/ssr),
-      // el link de recuperación llega con ?code=... en la URL. A diferencia
-      // del flujo implícito viejo, ESTE código NO se intercambia solo —
-      // hay que llamarlo explícitamente con exchangeCodeForSession.
-      const code = searchParams.get('code')
+      // 1) Flujo implícito: los tokens llegan en el #hash de la URL
+      //    (#access_token=...&refresh_token=...&type=recovery). El
+      //    cliente de @supabase/ssr (createBrowserClient) NO los detecta
+      //    automáticamente como sí lo hace supabase-js normal — así que
+      //    los leemos nosotros mismos y establecemos la sesión a mano.
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const access_token = hashParams.get('access_token')
+        const refresh_token = hashParams.get('refresh_token')
 
+        if (access_token && refresh_token) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          })
+
+          if (!isMounted) return
+
+          if (setSessionError) {
+            setError('Tu enlace de recuperación ya expiró o no es válido. Por favor solicita uno nuevo.')
+            return
+          }
+
+          setIsReady(true)
+          setError(null)
+          // Limpiamos el hash de la URL para que no quede el token visible
+          window.history.replaceState(null, '', window.location.pathname)
+          return
+        }
+      }
+
+      // 2) Respaldo: flujo PKCE con ?code=... por si en algún momento
+      //    se usa ese método en vez del implícito.
+      const code = searchParams.get('code')
       if (code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
@@ -38,9 +66,7 @@ export default function ActualizarContrasena() {
         return
       }
 
-      // Respaldo: por si en algún momento el link llega con el flujo
-      // implícito viejo (#access_token) o si ya existe una sesión activa
-      // de recuperación por algún otro medio.
+      // 3) Último respaldo: revisamos si ya existe una sesión activa
       const { data: { session } } = await supabase.auth.getSession()
       if (isMounted && session) {
         setIsReady(true)
