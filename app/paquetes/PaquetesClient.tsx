@@ -227,7 +227,7 @@ export default function PaquetesClient({ packages }: { packages: Package[] }) {
 
             <div className="flex flex-col gap-3">
               <a 
-                href={`https://wa.me/529671653274?text=Hola,%20acabo%20de%20hacer%20el%20pago%20por%20el%20paquete%20${encodeURIComponent(paqueteSeleccionado.title)}`}
+                href={`https://wa.me/529671486784?text=Hola,%20acabo%20de%20hacer%20el%20pago%20por%20el%20paquete%20${encodeURIComponent(paqueteSeleccionado.title)}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{ backgroundColor: '#25D366' }}

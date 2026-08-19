@@ -1,16 +1,22 @@
 import Image from "next/image";
+import AboutSection from "./components/AboutSection";
+import FeaturesSection from "./components/DisciplinasSection";
+import ReseñasSection from "./components/ReseñasSection";
+import EnlacesSection from "./components/EnlacesSection";
+import ComoReservar from "./components/ComoReservar";
 
-export default function Hero() {
+export default function Home() {
   return (
-    <div className="grow flex flex-col font-sans">
+    <main className="grow flex flex-col font-sans">
+      
       {/* --- HERO SECTION --- */}
-      <section className="relative h-screen w-full flex flex-col justify-end items-start text-white antialiased pb-20 pl-6 md:pl-16 lg:pl-20">
+      <section className="relative h-screen w-full flex items-center justify-center text-white overflow-hidden antialiased">
         
         {/* Contenedor de la Imagen de Fondo */}
         <div className="absolute inset-0 z-0">
           <Image
-            src="/hero.jpg"
-            alt="Persona haciendo Pilates en estudio"
+            src="/verde.jpeg"
+            alt="Mujer practicando Pilates"
             fill
             priority
             className="object-cover object-center"
@@ -18,52 +24,48 @@ export default function Hero() {
           />
         </div>
 
-        {/* Overlay con tinte marrón oscuro para mantener la paleta de colores */}
-        <div className="absolute inset-0 z-10 bg-[#1c1613]/55" aria-hidden="true" />
+        {/* 2. Capa de Superposición (Overlay) para oscurecer el fondo */}
+        {/* Usamos pseudo-elementos after: para mayor limpieza */}
+        <div className="absolute inset-0 z-10 bg-black/30" aria-hidden="true" />
 
-        {/* Contenido del Hero (Alineado a la izquierda, abajo) */}
-        <div className="relative z-20 text-left max-w-2xl flex flex-col items-start drop-shadow-md">
+
+        {/* 3. Contenedor del Contenido Central */}
+        <div className="relative z-20 text-center px-4 max-w-4xl flex flex-col items-center">
           
-          {/* Título Pequeño Superior */}
-          <p className="text-xs md:text-sm font-medium tracking-[0.25em] uppercase text-[#E8E2DD] mb-6">
-            ISLA &nbsp;·&nbsp; STUDIO &nbsp;·&nbsp; PILATES
-          </p>
-
-          {/* Título Principal Combinado */}
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif leading-none mb-8 text-balance text-white">
-            Muévete <span className="block italic font-light text-[#E8DCC4] mt-2">con intención</span>
+          {/* Título Principal */}
+          {/* tracking-tighter (moderno), leading-tight (menos espacio entre líneas) */}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-widest md:tracking-normal uppercase leading-tight mb-4 text-balance">
+            Bienvenido <br /> a Können
           </h1>
           
-          {/* Separador Gráfico */}
-          <hr className="w-16 border-t border-[#E8E2DD]/50 mb-8" />
-          
-          {/* Párrafo de Descripción */}
-          <p className="text-base md:text-lg font-normal mb-12 text-[#F5F2EF]/90 max-w-xl text-balance">
-            Un espacio donde el movimiento se convierte en ritual. Pilates, barre y movilidad para transformar tu cuerpo desde adentro.
+          {/* Subtítulo (Slogan) */}
+          <p className="text-lg md:text-lg lg:text-xl font-medium mb-12 max-w-2xl text-balance">
+            SI PUEDES
           </p>
           
-          {/* Contenedor de Botones de Acción */}
-          <div className="flex flex-col sm:flex-row gap-4 w-full">
-            {/* Botón 1: Tono crema claro con texto oscuro */}
-            <a
-              href="/horario"
-              className="inline-block bg-[#E8E2DD] text-[#2C2421] px-10 py-4 rounded-full font-medium text-base hover:bg-white transition-colors shadow-lg text-center"
-            >
-              Ver horario
-            </a>
-            
-            {/* Botón 2: Fondo semitransparente con borde sutil en tonos tierra */}
-            <a
-              href="/nuestras-clases"
-              className="inline-block bg-[#2C2421]/40 backdrop-blur-sm border border-[#E8E2DD]/30 text-white px-10 py-4 rounded-full font-medium text-base hover:bg-[#2C2421]/60 transition-colors text-center"
-            >
-              Nuestras clases
-            </a>
-          </div>
-          
+          {/* bg-brand-blue (si lo definiste en globals.css v4) o bg-[#0052cc] */}
+          <button className="bg-tertiary px-12 py-3 rounded-md font-semibold text-lg hover:bg-(--dark-tertiary) transition-colors shadow-lg">
+            <a href="/horario">Reservar clase</a>
+          </button>
         </div>
 
       </section>
-    </div>
+
+      <section>
+        <AboutSection/>
+      </section>
+      <section>
+        <FeaturesSection/>
+      </section>
+      <section>
+        <ComoReservar/>
+      </section>
+      <section>
+        <ReseñasSection/>
+        <EnlacesSection/>
+      </section>
+
+
+    </main>
   );
 }
