@@ -162,7 +162,7 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-emerald-500 uppercase tracking-widest">Precio Especial (Opcional)</label>
+              <label className="text-xs text-emerald-500 uppercase tracking-widest">Miembros K (Opcional)</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                 <input type="number" min={0} placeholder="Ej: 1099" className="bg-emerald-900/20 border border-emerald-800/50 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white w-full placeholder-gray-500/50" value={form.precio_especial} onChange={(e) => setForm({ ...form, precio_especial: e.target.value })} />
@@ -170,7 +170,7 @@ export default function EventosAdminClient({ events: initial }: { events: Event[
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-emerald-500 uppercase tracking-widest">Límite precio especial</label>
+              <label className="text-xs text-emerald-500 uppercase tracking-widest">Límite Miembros K</label>
               <input type="datetime-local" className="bg-emerald-900/20 border border-emerald-800/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white" value={form.fecha_limite_especial} onChange={(e) => setForm({ ...form, fecha_limite_especial: e.target.value })} />
             </div>
 

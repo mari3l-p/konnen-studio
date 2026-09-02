@@ -48,11 +48,14 @@ export default function PaquetesAdminClient({ packages: initial }: { packages: P
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [rowError, setRowError] = useState<string | null>(null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
 
   function update(key: string, value: string | number) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
+
+  const [form, setForm] = useState(EMPTY_FORM)
 
   function handleValidityChange(value: string) {
     const option = VALIDITY_OPTIONS.find(o => o.value === value)
@@ -94,13 +97,58 @@ export default function PaquetesAdminClient({ packages: initial }: { packages: P
     setLoading(false)
   }
 
+  // NOTE: .select() at the end forces Supabase to return the affected rows.
+  // If RLS silently blocks the operation, `data` comes back empty with no
+  // `error` — that's the signal we check for below instead of trusting
+  // the call succeeded just because it didn't throw.
+
   async function handleToggle(id: string, current: boolean) {
-    await supabase.from('packages').update({ is_active: !current }).eq('id', id)
+    setRowError(null)
+    setPendingId(id)
+
+    const { data, error } = await supabase
+      .from('packages')
+      .update({ is_active: !current })
+      .eq('id', id)
+      .select()
+
+    setPendingId(null)
+
+    if (error) {
+      setRowError(`No se pudo actualizar "${packages.find(p => p.id === id)?.title ?? id}": ${error.message}`)
+      return
+    }
+
+    if (!data || data.length === 0) {
+      setRowError('No se pudo actualizar el paquete. Es posible que no tengas permisos (revisa las políticas RLS de la tabla "packages").')
+      return
+    }
+
     setPackages(prev => prev.map(p => p.id === id ? { ...p, is_active: !current } : p))
   }
 
   async function handleDelete(id: string) {
-    await supabase.from('packages').delete().eq('id', id)
+    setRowError(null)
+    setPendingId(id)
+
+    const { data, error } = await supabase
+      .from('packages')
+      .delete()
+      .eq('id', id)
+      .select()
+
+    setPendingId(null)
+
+    if (error) {
+      setRowError(`No se pudo eliminar "${packages.find(p => p.id === id)?.title ?? id}": ${error.message}`)
+      return
+    }
+
+    if (!data || data.length === 0) {
+      setRowError('No se pudo eliminar el paquete. Es posible que no tengas permisos (revisa las políticas RLS de la tabla "packages").')
+      return
+    }
+
     setPackages(prev => prev.filter(p => p.id !== id))
   }
 
@@ -121,6 +169,13 @@ export default function PaquetesAdminClient({ packages: initial }: { packages: P
           Nuevo paquete
         </button>
       </div>
+
+      {/* Row-level error (delete/toggle failures) */}
+      {rowError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3">
+          {rowError}
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -282,14 +337,16 @@ export default function PaquetesAdminClient({ packages: initial }: { packages: P
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleToggle(p.id, p.is_active)}
-                      className="text-gray-500 hover:text-blue-400 transition-colors"
+                      disabled={pendingId === p.id}
+                      className="text-gray-500 hover:text-blue-400 transition-colors disabled:opacity-40"
                       title={p.is_active ? 'Desactivar' : 'Activar'}
                     >
                       {p.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDelete(p.id)}
-                      className="text-gray-500 hover:text-red-400 transition-colors"
+                      disabled={pendingId === p.id}
+                      className="text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
