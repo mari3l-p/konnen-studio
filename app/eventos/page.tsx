@@ -4,7 +4,6 @@ import EventosClient from './EventosClient'
 export default async function EventosPage() {
   const supabase = await createSupabaseServerClient()
 
-  // Solo traemos los eventos que no han pasado y no están cancelados
   const { data: events } = await supabase
     .from('events')
     .select('*')
@@ -12,5 +11,13 @@ export default async function EventosPage() {
     .gte('starts_at', new Date().toISOString())
     .order('starts_at', { ascending: true })
 
-  return <EventosClient initialEvents={events || []} />
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let registeredEventIds: string[] = []
+  if (user) {
+    const { data: registros } = await supabase.rpc('mis_eventos_registrados')
+    registeredEventIds = (registros ?? []).map((r: any) => r.event_id)
+  }
+
+  return <EventosClient initialEvents={events || []} registeredEventIds={registeredEventIds} />
 }
