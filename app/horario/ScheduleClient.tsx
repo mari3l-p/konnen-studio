@@ -24,6 +24,23 @@ function getHoursUntilClass(startsAt: string): number {
   return msUntilClass / (1000 * 60 * 60)
 }
 
+// Ventana de "cierre nocturno": no se permiten reservas NUEVAS entre las
+// 23:30 y las 06:00 hora de México, sin importar qué tan lejos esté la
+// clase. Las cancelaciones NO pasan por esta función — siguen igual.
+function isQuietHours(now: Date): boolean {
+  const mxTimeStr = now.toLocaleString('en-US', {
+    timeZone: 'America/Mexico_City',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const [hourStr, minuteStr] = mxTimeStr.split(':')
+  const totalMinutes = parseInt(hourStr, 10) * 60 + parseInt(minuteStr, 10)
+  const closeStart = 23 * 60 + 30 // 23:30
+  const closeEnd = 6 * 60         // 06:00
+  return totalMinutes >= closeStart || totalMinutes < closeEnd
+}
+
 export default function ScheduleClient({
   sessions = [],
   bookedSessionIds = [],
@@ -41,6 +58,10 @@ export default function ScheduleClient({
   
   const [isLoadingAction, setIsLoadingAction] = useState(false)
 
+  // Se actualiza cada minuto para que, si alguien deja la página abierta
+  // justo cruzando las 23:30 o las 06:00, la UI se cierre/abra sola.
+  const [now, setNow] = useState(() => new Date())
+
   useEffect(() => {
     setIsMounted(true)
     async function checkUserSession() {
@@ -50,7 +71,12 @@ export default function ScheduleClient({
       }
     }
     checkUserSession()
+
+    const interval = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(interval)
   }, [])
+
+  const quietHoursNow = isQuietHours(now)
 
   const bookedSet = new Set(bookedSessionIds)
 
@@ -66,6 +92,7 @@ export default function ScheduleClient({
       router.push('/login')
       return
     }
+    if (quietHoursNow) return // salvaguarda extra: el botón ya está deshabilitado en este horario
     setSelectedSession(session)
   }
 
@@ -125,6 +152,12 @@ export default function ScheduleClient({
             <ChevronRight className="w-3 h-3 text-gray-400 rotate-90" />
           </button>
         </div>
+
+        {quietHoursNow && (
+          <div className="bg-gray-800 text-white text-xs md:text-sm rounded-xl px-4 py-2.5 mb-3 md:mb-4">
+            Las reservas están cerradas de 11:30 pm a 6:00 am (hora de México). Puedes seguir viendo el horario y cancelando reservas existentes.
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-3 md:mb-4">
           <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-gray-100">
@@ -187,7 +220,8 @@ export default function ScheduleClient({
               
               const hoursUntil = getHoursUntilClass(session.starts_at)
               const isPast = hoursUntil <= 0
-              const canBook = hoursUntil >= 2   
+              // canBook ahora también exige que NO estemos en horario de cierre nocturno.
+              const canBook = hoursUntil >= 2 && !quietHoursNow
               const canCancel = hoursUntil >= 8 
 
               const displayImage = session.class_types.image_url;
@@ -264,7 +298,7 @@ export default function ScheduleClient({
                       <div className="flex flex-col items-end gap-1">
                          <span className="text-orange-500 text-xs font-semibold">Cerrada</span>
                          <button disabled className="border border-gray-200 text-gray-400 bg-gray-50 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-xs md:text-sm font-medium cursor-default">
-                           Reservas cerradas
+                           {quietHoursNow ? 'Reservas cerradas por horario' : 'Reservas cerradas'}
                          </button>
                       </div>
                     ) : isFull ? (
