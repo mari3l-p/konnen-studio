@@ -24,6 +24,7 @@ type Availability = { booked_count: number; spots_left: number } | null
 type ScheduleSession = {
   id: string
   class_type_id: string
+  title?: string | null
   starts_at: string
   capacity: number
   location: string
@@ -56,12 +57,20 @@ export default function ScheduleManager({
 }: ScheduleManagerProps) {
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
-  const [classes, setClasses] = useState<ScheduleSession[]>(initialClasses)
+  // Las sesiones canceladas siguen en la base de datos (borrado lógico),
+  // pero no deben mostrarse en el panel al recargar.
+  const [classes, setClasses] = useState<ScheduleSession[]>(
+    () => initialClasses.filter(c => !c.is_cancelled)
+  )
   const [now, setNow] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date>(new Date())
   const [showForm, setShowForm] = useState(false)
   const [selectedClass, setSelectedClass] = useState<ScheduleSession | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Edición del nombre / tema de la sesión (modal)
+  const [editTitle, setEditTitle] = useState('')
+  const [savingTitle, setSavingTitle] = useState(false)
 
   // Estados para agregar cliente con búsqueda y créditos reales
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
@@ -72,6 +81,7 @@ export default function ScheduleManager({
 
   const [form, setForm] = useState({
     class_type_id: '',
+    title: '',
     instructor_id: isAdmin ? '' : (instructorProfile?.id || ''),
     starts_at: '',
     capacity: 15,
@@ -92,6 +102,11 @@ export default function ScheduleManager({
     router.push(logoutRedirectPath ?? '/')
   }
 
+  function openClass(cls: ScheduleSession) {
+    setSelectedClass(cls)
+    setEditTitle(cls.title ?? '')
+  }
+
   async function handleCreateSession() {
     if (!form.class_type_id || !form.instructor_id || !form.starts_at) {
       alert('Por favor completa todos los campos requeridos.')
@@ -101,7 +116,7 @@ export default function ScheduleManager({
     const startsAtMexico = `${form.starts_at}:00-06:00`
     const { data, error } = await supabase
       .from('sessions')
-      .insert([{ ...form, starts_at: startsAtMexico }])
+      .insert([{ ...form, title: form.title.trim() || null, starts_at: startsAtMexico }])
       .select('*, class_types(name, duration_mins), instructors(name)')
 
     if (!error && data) {
@@ -110,12 +125,42 @@ export default function ScheduleManager({
           .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
       )
       setShowForm(false)
-      setForm({ ...form, class_type_id: '', starts_at: '' })
+      setForm({ ...form, class_type_id: '', title: '', starts_at: '' })
       router.refresh()
     } else {
       alert('Error: ' + error?.message)
     }
     setLoading(false)
+  }
+
+  async function handleSaveTitle() {
+    if (!selectedClass) return
+    setSavingTitle(true)
+
+    const newTitle = editTitle.trim() || null
+
+    // .select() para detectar si RLS bloqueó el UPDATE en silencio
+    const { data, error } = await supabase
+      .from('sessions')
+      .update({ title: newTitle })
+      .eq('id', selectedClass.id)
+      .select('id')
+
+    if (error) {
+      alert('Error al guardar el nombre: ' + error.message)
+    } else if (!data || data.length === 0) {
+      alert('No se pudo guardar el nombre. Es probable que tu cuenta no tenga permisos para editar sesiones (revisa las políticas RLS).')
+    } else {
+      const updatedClasses = classes.map(c =>
+        c.id === selectedClass.id ? { ...c, title: newTitle } : c
+      )
+      setClasses(updatedClasses)
+      setSelectedClass(updatedClasses.find(c => c.id === selectedClass.id) ?? null)
+      setEditTitle(newTitle ?? '')
+      router.refresh()
+    }
+
+    setSavingTitle(false)
   }
 
   async function handleCancelSession(id: string) {
@@ -139,6 +184,7 @@ export default function ScheduleManager({
 
     setClasses(prev => prev.filter(c => c.id !== id))
     closeModal()
+    router.refresh()
   }
 
   // Búsqueda independiente solo de perfiles
@@ -321,6 +367,7 @@ export default function ScheduleManager({
 
   const closeModal = () => {
     setSelectedClass(null)
+    setEditTitle('')
     setIsAddingCustomer(false)
     setSelectedUser(null)
     setSearchQuery('')
@@ -332,7 +379,7 @@ export default function ScheduleManager({
   const monthLabel = format(selectedDay, 'MMMM yyyy', { locale: es }).replace(/^\w/, c => c.toUpperCase())
 
   const dayViewClasses = classes
-    ?.filter((c) => isSameDay(new Date(c.starts_at), selectedDay))
+    ?.filter((c) => !c.is_cancelled && isSameDay(new Date(c.starts_at), selectedDay))
     ?.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
 
   return (
@@ -376,11 +423,20 @@ export default function ScheduleManager({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
               {[
-                { label: 'Clase *', content: (
+                { label: 'Tipo de clase *', content: (
                   <select style={selectStyle} value={form.class_type_id} onChange={e => setForm({ ...form, class_type_id: e.target.value })}>
                     <option value="">Seleccionar...</option>
                     {classTypes?.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                   </select>
+                )},
+                { label: 'Nombre / tema de la clase', content: (
+                  <input
+                    type="text"
+                    placeholder="Ej: Candle Ride, DÚO 80's, canciones..."
+                    style={selectStyle}
+                    value={form.title}
+                    onChange={e => setForm({ ...form, title: e.target.value })}
+                  />
                 )},
                 { label: 'Instructor *', content: (
                   <select style={{ ...selectStyle, opacity: isAdmin ? 1 : 0.5 }} value={form.instructor_id} disabled={!isAdmin} onChange={e => setForm({ ...form, instructor_id: e.target.value })}>
@@ -484,7 +540,7 @@ export default function ScheduleManager({
                 return (
                   <button
                     key={cls.id}
-                    onClick={() => setSelectedClass(cls)}
+                    onClick={() => openClass(cls)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 16,
                       background: color.bg, border: '1px solid #1a1a1a',
@@ -507,6 +563,9 @@ export default function ScheduleManager({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isPast ? '#888' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {cls.class_types?.name}
+                        {cls.title && (
+                          <span style={{ fontWeight: 500, color: isPast ? '#666' : color.text }}> · {cls.title}</span>
+                        )}
                       </p>
                       <p style={{ margin: '2px 0 0', fontSize: 12, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {cls.instructors?.name} · {cls.location}
@@ -544,7 +603,7 @@ export default function ScheduleManager({
           onClick={closeModal}
         >
           <div
-            style={{ background: '#111', border: '1px solid #222', borderRadius: 20, width: '100%', maxWidth: 380, padding: 24, boxShadow: '0 0 0 1px #333' }}
+            style={{ background: '#111', border: '1px solid #222', borderRadius: 20, width: '100%', maxWidth: 380, maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 0 0 1px #333' }}
             onClick={e => e.stopPropagation()}
           >
             {(() => {
@@ -557,6 +616,9 @@ export default function ScheduleManager({
               const booked = selectedClass.availability?.booked_count ?? 0
               const spots = selectedClass.availability?.spots_left ?? selectedClass.capacity
 
+              const canEdit = isAdmin || selectedClass.instructors?.name === instructorProfile?.name
+              const titleChanged = editTitle.trim() !== (selectedClass.title ?? '')
+
               return (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -566,6 +628,11 @@ export default function ScheduleManager({
                           {selectedClass.class_types?.name}
                         </span>
                       </div>
+                      {selectedClass.title && (
+                        <p style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: isPast ? '#888' : '#fff' }}>
+                          {selectedClass.title}
+                        </p>
+                      )}
                       <p style={{ margin: 0, fontSize: 13, color: '#555', textTransform: 'capitalize' }}>
                         {format(new Date(selectedClass.starts_at), "EEEE d MMM · h:mm a", { locale: es })}
                       </p>
@@ -573,6 +640,36 @@ export default function ScheduleManager({
                     <button onClick={closeModal} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: 4 }}>
                       <X size={18} />
                     </button>
+                  </div>
+
+                  {/* Nombre / tema de la clase (editable) */}
+                  <div style={{ background: '#0a0a0a', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                      Nombre / tema de la clase
+                    </label>
+                    {canEdit ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Ej: Candle Ride, DÚO 80's, canciones..."
+                          value={editTitle}
+                          onChange={e => setEditTitle(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && titleChanged && !savingTitle) handleSaveTitle() }}
+                          style={{ flex: 1, minWidth: 0, background: '#000', border: '1px solid #333', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#fff', outline: 'none' }}
+                        />
+                        <button
+                          onClick={handleSaveTitle}
+                          disabled={savingTitle || !titleChanged}
+                          style={{ background: '#fff', color: '#000', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (savingTitle || !titleChanged) ? 0.4 : 1 }}
+                        >
+                          {savingTitle ? '...' : 'Guardar'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: 13, color: selectedClass.title ? '#ccc' : '#555' }}>
+                        {selectedClass.title || 'Sin nombre'}
+                      </p>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#0a0a0a', borderRadius: 12, padding: 16, marginBottom: 20 }}>

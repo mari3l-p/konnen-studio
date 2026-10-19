@@ -14,6 +14,7 @@ export type Instructor = {
 }
 
 export type Session = {
+  title?: string | null
   id: string
   starts_at: string
   capacity: number

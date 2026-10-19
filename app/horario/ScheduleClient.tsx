@@ -260,6 +260,11 @@ export default function ScheduleClient({
                     <p className="font-bold text-gray-900 text-sm md:text-base mb-0.5 truncate">
                       {session.class_types.name}
                     </p>
+                    {session.title && (
+                      <p className="text-gray-500 text-[11px] md:text-xs mb-1 truncate">
+                        {session.title}
+                      </p>
+                    )}
                     <p className="text-gray-600 text-xs md:text-sm truncate">
                       {session.instructors?.name}
                     </p>

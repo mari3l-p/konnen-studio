@@ -27,12 +27,20 @@ function normalize(text: string) {
   return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 }
 
-function isCompatible(packageTitle: string, packageClassType: string, sessionClassName: string, sessionDiscipline: string): boolean {
-  if (!packageClassType || !sessionDiscipline || !sessionClassName) return false
+// sessionFullName = tipo de clase + nombre/tema de la sesión (ej. "Indoor Cycling DÚO 80's Ride").
+// Se usa para detectar clases "duo", que ahora viven en el título de la sesión
+// y no en el nombre del tipo de clase.
+function isCompatible(
+  packageTitle: string,
+  packageClassType: string,
+  sessionFullName: string,
+  sessionDiscipline: string
+): boolean {
+  if (!packageClassType || !sessionDiscipline || !sessionFullName) return false
 
   const pkgTitle = normalize(packageTitle)
   const pkgType = normalize(packageClassType)
-  const clsName = normalize(sessionClassName)
+  const clsName = normalize(sessionFullName)
   const clsDiscipline = normalize(sessionDiscipline)
 
   // Un paquete "duo" solo sirve para reservar clases duo (esto no cambia)
@@ -67,6 +75,9 @@ export default function BookingModal({ session, onClose }: Props) {
   // Estado para reservas grupales (paquetes Mixto / Elite Mix)
   const [guestNames, setGuestNames] = useState<string[]>([''])
 
+  // Nombre completo de la sesión para la lógica de compatibilidad
+  const sessionFullName = [session.class_types.name, session.title].filter(Boolean).join(' ')
+
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -100,8 +111,10 @@ export default function BookingModal({ session, onClose }: Props) {
       const pkgs = data ?? []
       setAllPackages(pkgs)
 
+      const fullName = [session.class_types.name, session.title].filter(Boolean).join(' ')
+
       const compatible = pkgs.filter(up =>
-        isCompatible(up.packages.title, up.packages.class_type, session.class_types.name, finalDisciplineToCheck)
+        isCompatible(up.packages.title, up.packages.class_type, fullName, finalDisciplineToCheck)
       )
       setCompatiblePackages(compatible)
 
@@ -109,7 +122,7 @@ export default function BookingModal({ session, onClose }: Props) {
       setLoadingPackages(false)
     }
     fetchData()
-  }, [session.class_types.id, session.class_types.name])
+  }, [session.class_types.id, session.class_types.name, session.title])
 
   const selectedPackageData = useMemo(
     () => compatiblePackages.find(p => p.id === selectedPackage) ?? null,
@@ -198,6 +211,9 @@ export default function BookingModal({ session, onClose }: Props) {
         </button>
 
         <h2 className="text-xl font-bold text-gray-900 mb-1">{session.class_types.name}</h2>
+        {session.title && (
+          <p className="text-gray-500 text-sm mb-1">{session.title}</p>
+        )}
         <p className="text-gray-500 text-sm mb-4">
           {format(new Date(session.starts_at), "EEEE d MMMM · hh:mm aa", { locale: es })}
         </p>

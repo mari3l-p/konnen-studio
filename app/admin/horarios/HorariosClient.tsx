@@ -22,36 +22,44 @@ function toMexicoTime(dateInput: string | Date) {
 
 const DAYS = Array.from({ length: 7 }, (_, i) => i)
 
+const EMPTY_FORM = {
+  class_type_id: '',
+  title: '',
+  instructor_id: '',
+  starts_at: '',
+  capacity: 15,
+  location: 'Konnen Studio',
+}
+
 export default function HorariosClient({ sessions: initial, classTypes, instructors }: Props) {
   const router = useRouter()
   const [sessions, setSessions] = useState(initial)
-  
+
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date()) 
-  
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
-  const [form, setForm] = useState({
-    class_type_id: '',
-    instructor_id: '',
-    starts_at: '',
-    capacity: 15,
-    location: 'Konnen Studio',
-  })
+  const [form, setForm] = useState(EMPTY_FORM)
 
   async function handleCreate() {
     setLoading(true)
     const startsAtMexico = `${form.starts_at}:00-06:00`
-    const payload = { ...form, starts_at: startsAtMexico }
+    const payload = {
+      ...form,
+      title: form.title.trim() || null,
+      instructor_id: form.instructor_id || null,
+      starts_at: startsAtMexico,
+    }
     const { error } = await supabase.from('sessions').insert([payload])
     if (error) {
       alert('Error: ' + error.message)
     } else {
       router.refresh()
       setShowForm(false)
-      setForm({ class_type_id: '', instructor_id: '', starts_at: '', capacity: 15, location: 'Konnen Studio' })
+      setForm(EMPTY_FORM)
     }
     setLoading(false)
   }
@@ -99,7 +107,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-widest">Clase</label>
+              <label className="text-xs text-gray-400 uppercase tracking-widest">Tipo de clase *</label>
               <select
                 className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white"
                 value={form.class_type_id}
@@ -110,6 +118,17 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                   <option key={ct.id} value={ct.id}>{ct.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-widest">Nombre / tema de la clase</label>
+              <input
+                type="text"
+                placeholder="Ej: Candle Ride, DÚO 80's, Hannah Montana..."
+                className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -127,7 +146,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-widest">Fecha y hora (Hora México)</label>
+              <label className="text-xs text-gray-400 uppercase tracking-widest">Fecha y hora (Hora México) *</label>
               <input
                 type="datetime-local"
                 className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white"
@@ -146,7 +165,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
               />
             </div>
 
-            <div className="flex flex-col gap-1.5 md:col-span-2">
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs text-gray-400 uppercase tracking-widest">Ubicación</label>
               <input
                 type="text"
@@ -189,7 +208,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
             onClick={() => {
               const now = new Date()
               setWeekStart(startOfWeek(now, { weekStartsOn: 1 }))
-              setSelectedDate(now) 
+              setSelectedDate(now)
             }}
             className="px-3 py-1.5 text-xs font-medium border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors text-gray-300"
           >
@@ -206,7 +225,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
 
       {/* ── LIST VIEW ── */}
       <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden flex-1 flex flex-col min-h-[500px]">
-        
+
         {/* Selector de días superior */}
         <div className="grid grid-cols-7 border-b border-gray-800 bg-gray-900/40 shrink-0">
           {weekDays.map((day, i) => {
@@ -256,14 +275,17 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                   </td>
                 </tr>
               )}
-              {listSessions
+              {[...listSessions]
                 .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
                 .map(s => (
                   <tr key={s.id} className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
                     <td className="px-6 py-4 text-gray-300 whitespace-nowrap">
                       {format(toMexicoTime(s.starts_at), "hh:mm aa", { locale: es })}
                     </td>
-                    <td className="px-6 py-4 font-medium text-white">{s.class_types?.name}</td>
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-white">{s.class_types?.name}</p>
+                      {s.title && <p className="text-xs text-gray-400 mt-0.5">{s.title}</p>}
+                    </td>
                     <td className="px-6 py-4 text-gray-400">{s.instructors?.name ?? '—'}</td>
                     <td className="px-6 py-4 text-gray-400">
                       {s.session_availability?.spots_left ?? '—'} / {s.capacity}
@@ -274,7 +296,7 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                         : <span className="text-xs font-semibold text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">Activa</span>
                       }
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       {!s.is_cancelled && (
                         <button
                           onClick={() => setSelectedSession(s)}
@@ -286,9 +308,10 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                       {!s.is_cancelled && (
                         <button
                           onClick={() => handleCancel(s.id)}
-                          className="text-gray-500 hover:text-red-400 transition-colors"
+                          className="text-gray-500 hover:text-red-400 transition-colors align-middle"
+                          title="Cancelar sesión"
                         >
-                          
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </td>
@@ -314,6 +337,9 @@ export default function HorariosClient({ sessions: initial, classTypes, instruct
                 <h3 className="font-bold text-white text-lg">
                   {selectedSession.class_types?.name}
                 </h3>
+                {selectedSession.title && (
+                  <p className="text-blue-400 text-sm font-medium mt-0.5">{selectedSession.title}</p>
+                )}
                 <p className="text-gray-400 text-sm mt-0.5">
                   {format(toMexicoTime(selectedSession.starts_at), "EEEE d MMMM · hh:mm aa", { locale: es })}
                 </p>
