@@ -8,7 +8,7 @@ export default function AboutSection() {
         {/* Lado Izquierdo: Imagen */}
         <div className="relative w-full rounded-sm shadow-sm overflow-hidden">
           <img
-            src="/picGrupo.jpeg"
+            src="/todas.jpeg"
             alt="Equipo de Konnen Studio"
             className="w-full h-auto object-cover"
           />
